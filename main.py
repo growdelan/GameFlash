@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 
 from llms import groq
-from scrapers import jina
+from scrapers import jina, lang_webbaseloader
 from utils import utils
 from emails import gmail
 
@@ -16,7 +16,7 @@ def load_config():
     load_dotenv()
     return {
         "DATABASE_PATH": "news_links.json",
-        "URL": "https://www.ppe.pl/news.html",
+        "URL": "https://konsolowe.info/playstation/ps5/",
         "GROQ_API": os.getenv("GROQ_API_KEY"),
         "LLM_MODEL": "llama3-70b-8192",
         "SMTP_SERVER": os.getenv("SMTP_SERVER"),
@@ -70,11 +70,11 @@ def summarize_news_and_send(config, new_links):
         summary_prompt = groq.summary_system_prompt()
         print(f"Prompt do podsumowania newsów:\n{summary_prompt}\n")
         for news in new_links:
-            read_news = jina.jina_scraper(url=news)
+            read_news = lang_webbaseloader.webbaseloader(url=news)
             summary_model_options = groq.model_options(
                 system_prompt=summary_prompt,
                 user_text=read_news,
-                temperature=0,
+                temperature=1,
                 max_tokens=1024,
                 json_mode=False,
             )

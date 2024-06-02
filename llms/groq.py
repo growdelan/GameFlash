@@ -6,11 +6,11 @@ from groq import Groq
 def news_system_prompt():
     """Prompt dla wyciągania linków do JSON"""
     system_prompt = """
-    From the given text, extract links containing "/news/<number>" into JSON format.
+    From the given text, extract links into JSON format.
 
     Example of links:
-    - https://www.ppe.pl/news/343900/xbox-z-nowymi-grami-w-kolejnym-tygodniu-garsc-premier-w-microsoft-store-1.html
-    - https://www.ppe.pl/news/343891/astro-bot-to-zupelnie-nowe-otwarcie-gra-ma-byc-naprawde-ogromna.html
+    - https://konsolowe.info/2024/06/kingdom-come-deliverance-2-30-fps-na-konsolach/
+    - https://konsolowe.info/2024/05/astro-bot-juz-wkrotce-powroci-na-ps5/
 
     Response template:
     { "links": ["link1", "link2", "link3"]}
