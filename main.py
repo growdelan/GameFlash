@@ -16,7 +16,7 @@ def load_config():
     load_dotenv()
     return {
         "DATABASE_PATH": "news_links.json",
-        "URL": "https://www.eurogamer.pl/news",
+        "URL": "https://www.ppe.pl/news.html",
         "GROQ_API": os.getenv("GROQ_API_KEY"),
         "LLM_MODEL": "llama3-70b-8192",
         "SMTP_SERVER": os.getenv("SMTP_SERVER"),

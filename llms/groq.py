@@ -6,11 +6,11 @@ from groq import Groq
 def news_system_prompt():
     """Prompt dla wyciągania linków do JSON"""
     system_prompt = """
-    From the given text, extract the news links starting with "https://www.eurogamer.pl/" into JSON format.
+    From the given text, extract links containing "/news/<number>" into JSON format.
 
     Example of links:
-    - https://www.eurogamer.pl/tworcy-remakeow-spyro-i-nowego-crash-bandicoot-tworza-gre-dla-microsoftu
-    - https://www.eurogamer.pl/czy-gta-6-ominie-pc-kwestia-zapowiedzi-jest-w-rekach-rockstara
+    - https://www.ppe.pl/news/343900/xbox-z-nowymi-grami-w-kolejnym-tygodniu-garsc-premier-w-microsoft-store-1.html
+    - https://www.ppe.pl/news/343891/astro-bot-to-zupelnie-nowe-otwarcie-gra-ma-byc-naprawde-ogromna.html
 
     Response template:
     { "links": ["link1", "link2", "link3"]}
@@ -28,7 +28,7 @@ def summary_system_prompt():
     Response template:
     Tytuł: <Title>
     <space>
-    Podsumowanie: <Summary of text>
+    Podsumowanie:<Markdown Content Summary>
     <space>
     Link: <URL Source>
 
