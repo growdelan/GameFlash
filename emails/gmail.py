@@ -20,7 +20,7 @@ def send_email(
     msg["Subject"] = "Podsumowanie newsów z Eurogamer"
     msg.attach(MIMEText(body, "plain"))
 
-    msg["To"] = ", ".join(recipients)
+    msg["Bcc"] = ", ".join(recipients)
 
     context = ssl.create_default_context()
     with smtplib.SMTP(smtp_server, 587) as server:

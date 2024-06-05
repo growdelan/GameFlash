@@ -27,10 +27,9 @@ def summary_system_prompt():
 
     Response template:
     Tytuł: <Title>
-    <space>
+    <new line>
     Podsumowanie:<Markdown Content Summary>
-    <space>
-    Link: <URL Source>
+    <new line>
 
     the reply must be in the template format, don't say anything else it is very important
     """

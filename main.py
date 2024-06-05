@@ -83,7 +83,9 @@ def summarize_news_and_send(config, new_links):
                 model=config["LLM_MODEL"],
                 options=summary_model_options,
             )
-            news_to_send.append(f"{summary_news}\n\n################################")
+            news_to_send.append(
+                f"{summary_news}\n\nLink: {news}\n\n################################"
+            )
             print(summary_news)
         print(f"Newsy do wysłania:\n{news_to_send}")
 
