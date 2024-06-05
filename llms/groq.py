@@ -23,7 +23,7 @@ def news_system_prompt():
 def summary_system_prompt():
     """Prompt do podsumowywania newsów"""
     system_prompt = """
-    The text provided, summarise in Polish language in a maximum of 300 words, extracting the "Title" and "URL Source" fields in the following format.
+    The text provided, summarise in Polish language in a maximum of 300 words, extracting the "Title" field in the following format.
 
     Response template:
     Tytuł: <Title>
