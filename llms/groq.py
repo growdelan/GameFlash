@@ -36,6 +36,16 @@ def summary_system_prompt():
     return system_prompt
 
 
+def proofreading_system_prompt():
+    """Prompt do korekty podsumowanych tekstów"""
+    proofreading_prompt = """
+    You proofreading the submitted text (the text must remain in Polish!), your task is to improve the grammar and style of the text and make it visually attractive as a summary for the client.
+
+    The reply must be in the corrected text, don't say anything else it is very important.
+    """
+    return proofreading_prompt
+
+
 def groq_client(groq_api_key):
     """Inicjalizacja klienta Groq"""
     client = Groq(
