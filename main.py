@@ -57,49 +57,71 @@ def fetch_and_process_news(config):
     return new_links
 
 
-def summarize_news_and_send(config, new_links):
+def summarize_news(config, new_links):
     """
     Podsumowuje nowe linki do newsów i wysyła email z podsumowaniami.
     """
-    if new_links:
-        utils.update_database(
-            database_path=config["DATABASE_PATH"], new_links=new_links
+    utils.update_database(database_path=config["DATABASE_PATH"], new_links=new_links)
+    print("Baza została zaktualizowana")
+    news_to_corrected = []
+    summary_prompt = groq.summary_system_prompt()
+    print(f"Prompt do podsumowania newsów:\n{summary_prompt}\n")
+    for news in new_links:
+        read_news = lang_webbaseloader.webbaseloader(url=news)
+        summary_model_options = groq.model_options(
+            system_prompt=summary_prompt,
+            user_text=read_news,
+            temperature=1,
+            max_tokens=1024,
+            json_mode=False,
         )
-        print("Baza została zaktualizowana")
-        news_to_send = []
-        summary_prompt = groq.summary_system_prompt()
-        print(f"Prompt do podsumowania newsów:\n{summary_prompt}\n")
-        for news in new_links:
-            read_news = lang_webbaseloader.webbaseloader(url=news)
-            summary_model_options = groq.model_options(
-                system_prompt=summary_prompt,
-                user_text=read_news,
-                temperature=1,
-                max_tokens=1024,
-                json_mode=False,
-            )
-            summary_news = groq.run_groq_model(
-                groq_api_key=config["GROQ_API"],
-                model=config["LLM_MODEL"],
-                options=summary_model_options,
-            )
-            news_to_send.append(
-                f"{summary_news}\n\nLink: {news}\n\n################################"
-            )
-            print(summary_news)
-        print(f"Newsy do wysłania:\n{news_to_send}")
+        summary_news = groq.run_groq_model(
+            groq_api_key=config["GROQ_API"],
+            model=config["LLM_MODEL"],
+            options=summary_model_options,
+        )
+        news_to_corrected.append(
+            f"{summary_news}\n\nLink: {news}\n\n################################"
+        )
+        print(summary_news)
+    print(f"Newsy do podsumowania:\n{news_to_corrected}")
+    return news_to_corrected
 
-        if news_to_send:
-            gmail.send_email(
-                recipients=config["RECIPIENTS"],
-                news_to_send=news_to_send,
-                sender_mail=config["SENDER_MAIL"],
-                smtp_server=config["SMTP_SERVER"],
-                sender_pass=config["SENDER_PASS"],
-            )
-            print("Newsy zostały wysłane!!!")
-    else:
-        print("Brak nowych linków")
+
+def news_proofreading(config, news_to_corrected):
+    """Przeprowadza korektę na podsumowanych newsach"""
+    news_to_send = []
+    proofreading_prompt = groq.proofreading_system_prompt()
+    print(f"Prompt do korekty newsów:\n{proofreading_prompt}")
+    for news in news_to_corrected:
+        proofreading_model_options = groq.model_options(
+            system_prompt=proofreading_prompt,
+            user_text=news,
+            temperature=1,
+            max_tokens=1024,
+            json_mode=False,
+        )
+        proofreading_news = groq.run_groq_model(
+            groq_api_key=config["GROQ_API"],
+            model=config["LLM_MODEL"],
+            options=proofreading_model_options,
+        )
+        news_to_send.append(f"{proofreading_news}\n\n################################")
+        print(news_to_send)
+    print(f"Newsy po korekcie:\n{news_to_send}")
+    return news_to_send
+
+
+def sending_emails(config, news_to_send):
+    """Wysyłka emaili"""
+    gmail.send_email(
+        recipients=config["RECIPIENTS"],
+        news_to_send=news_to_send,
+        sender_mail=config["SENDER_MAIL"],
+        smtp_server=config["SMTP_SERVER"],
+        sender_pass=config["SENDER_PASS"],
+    )
+    print("Newsy zostały wysłane!!!")
 
 
 def main():
@@ -109,7 +131,12 @@ def main():
     """
     config = load_config()
     new_links = fetch_and_process_news(config)
-    summarize_news_and_send(config, new_links)
+    if new_links:
+        news_to_corrected = summarize_news(config, new_links)
+        news_to_send = news_proofreading(config, news_to_corrected)
+        sending_emails(config, news_to_send)
+    else:
+        print("Brak nowych newsów do wysłania!")
 
 
 if __name__ == "__main__":
