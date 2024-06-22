@@ -33,14 +33,10 @@ def fetch_and_process_news(config):
     utils.initialize_database(config["DATABASE_PATH"])
 
     news = jina.jina_scraper(url=config["URL"])
-    news_prompt = groq.news_system_prompt()
-    print(f"Prompt dla ekstrakcji linków:\n{news_prompt}\n")
     news_model_options = groq.model_options(
-        system_prompt=news_prompt,
-        user_text=news,
+        prompt=groq.news_prompt(news),
         temperature=0,
-        max_tokens=1024,
-        json_mode=True,
+        max_tokens=1600,
     )
     news_response = groq.run_groq_model(
         groq_api_key=config["GROQ_API"],
@@ -64,16 +60,12 @@ def summarize_news(config, new_links):
     utils.update_database(database_path=config["DATABASE_PATH"], new_links=new_links)
     print("Baza została zaktualizowana")
     news_to_corrected = []
-    summary_prompt = groq.summary_system_prompt()
-    print(f"Prompt do podsumowania newsów:\n{summary_prompt}\n")
     for news in new_links:
         read_news = lang_webbaseloader.webbaseloader(url=news)
         summary_model_options = groq.model_options(
-            system_prompt=summary_prompt,
-            user_text=read_news,
-            temperature=1,
+            prompt=groq.summary_prompt(read_news),
+            temperature=0.8,
             max_tokens=1024,
-            json_mode=False,
         )
         summary_news = groq.run_groq_model(
             groq_api_key=config["GROQ_API"],
@@ -91,15 +83,11 @@ def summarize_news(config, new_links):
 def news_proofreading(config, news_to_corrected):
     """Przeprowadza korektę na podsumowanych newsach"""
     news_to_send = []
-    proofreading_prompt = groq.proofreading_system_prompt()
-    print(f"Prompt do korekty newsów:\n{proofreading_prompt}")
     for news in news_to_corrected:
         proofreading_model_options = groq.model_options(
-            system_prompt=proofreading_prompt,
-            user_text=news,
+            prompt=groq.proofreading_prompt(news),
             temperature=1,
             max_tokens=1024,
-            json_mode=False,
         )
         proofreading_news = groq.run_groq_model(
             groq_api_key=config["GROQ_API"],

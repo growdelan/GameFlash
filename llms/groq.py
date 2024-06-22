@@ -3,47 +3,84 @@
 from groq import Groq
 
 
-def news_system_prompt():
+# pylint: disable=line-too-long
+def news_prompt(context):
     """Prompt dla wyciągania linków do JSON"""
-    system_prompt = """
-    From the given text, extract links into JSON format.
+    prompt = f"""
+Działaj jako ekspert w przetwarzaniu tekstu i ekstrakcji danych.
 
-    Example of links:
-    - https://konsolowe.info/2024/06/kingdom-come-deliverance-2-30-fps-na-konsolach/
-    - https://konsolowe.info/2024/05/astro-bot-juz-wkrotce-powroci-na-ps5/
+### Zadanie
+Twoim zadaniem jest wyekstrahowanie wszystkich linków z podanego tekstu i zapisanie ich w formacie JSON. Linki należy umieścić w tablicy w formacie: {{ "links": ["link1", "link2", "link3"] }}. Upewnij się, że każdy link jest zapisany jako osobny element tablicy.
 
-    Response template:
-    { "links": ["link1", "link2", "link3"]}
+### Kontekst
+Użytkownik podał tekst zawierający linki, które trzeba wyekstrahować. Format linku który szukasz do ekstrakcji wygląda następująco: https://konsolowe.info/<rok>/<miesiąc>/<tytuł/. Linki wyglądające inaczej pomiń.
 
-    the reply must be in the template format, don't say anything else it is very important
-    """
-    return system_prompt
+### Format odpowiedzi
+Odpowiedź musi być w formacie słownika z kluczem "links", gdzie wartością będzie tablica zawierająca wszystkie wyekstrahowane linki.
+
+Przykład odpowiedzi: {{ "links": ["https://konsolowe.info/2024/06/promocja-steelbook-w-preorderach-call-of-duty-black-ops-6/", "https://konsolowe.info/2024/06/xdefiant-juz-jutro-z-nowym-trybem/", "https://konsolowe.info/2024/06/charytatywna-akcja-pink-mercy-powroci-w-overwatch-2/"] }}
+
+Musisz odpowiedzieć tylko we wskazanym formacie. Nie dodawaj nic więcej!
+
+### Dane wejściowe
+{context}
+"""
+    return prompt
 
 
-def summary_system_prompt():
+# pylint: enable=line-too-long
+
+
+def summary_prompt(context):
     """Prompt do podsumowywania newsów"""
-    system_prompt = """
-    The text provided, summarise in Polish language in a maximum of 300 words, extracting the "Title" field in the following format.
+    prompt = f"""
+Działaj jako ekspert w dziedzinie gier wideo.
 
-    Response template:
-    Tytuł: <Title>
-    <new line>
-    Podsumowanie:<Markdown Content Summary>
-    <new line>
+Twoim zadaniem jest stworzenie podsumowania dostarczonego tekstu z branży gier w języku polskim. Podsumowanie powinno zawierać najważniejsze informacje, kluczowe punkty oraz ogólny przegląd treści, aby zapewnić pełne zrozumienie tekstu w maksymalnie 300 słowach.
 
-    the reply must be in the template format, don't say anything else it is very important
-    """
-    return system_prompt
+### Kontekst
+Podany tekst pochodzi z branży gier i może obejmować różne aspekty, takie jak recenzje gier, analizy rynkowe, wywiady z twórcami gier, aktualizacje dotyczące gier czy trendy w branży. Ważne jest, aby uchwycić główne idee i przekazać je w zwięzły i zrozumiały sposób.
+
+### Format odpowiedzi
+Odpowiedź ZAWSZE musi być w następującym formacie:
+
+Tytuł: <tutuł newsa>
+<pusta linia>
+Podsumowanie: <podsumowana treść>
+<pusta linia>
+
+### Dane wejściowe
+{context}
+"""
+    return prompt
 
 
-def proofreading_system_prompt():
+def proofreading_prompt(context):
     """Prompt do korekty podsumowanych tekstów"""
-    proofreading_prompt = """
-    You proofreading the submitted text (the text must remain in Polish!), your task is to improve the grammar and style of the text and make it visually attractive as a summary for the client.
+    prompt = f"""
+Działaj jako ekspert w korekcie tekstów.
 
-    The reply must be in the corrected text, don't say anything else it is very important.
-    """
-    return proofreading_prompt
+### Zadanie
+Twoim zadaniem jest przeprowadzenie profesjonalnej korekty dostarczonego tekstu. Korekta powinna obejmować poprawienie wszelkich błędów gramatycznych, interpunkcyjnych i stylistycznych. Upewnij się, że tekst jest spójny, jasny i płynny. Jeśli znajdziesz jakiekolwiek fragmenty, które mogą zostać sformułowane lepiej, proszę o ich poprawę. Zwróć uwagę na ton i styl tekstu, dostosowując go odpowiednio do zamierzonej publiczności.
+
+### Kontekst
+Tekst jest przeznaczony do publikacji i powinien być napisany w profesjonalnym tonie. Ważne jest, aby zachować intencję i znaczenie oryginalnego tekstu, jednocześnie poprawiając jego czytelność i poprawność językową.
+
+### Dane wejściowe
+{context}
+
+### Format odpowiedzi
+Odpowiedz musi być w języku polskim i gotowa do publikacji. ZAWSZE używaj poniższego formatu:
+
+Tytuł: <oryginalny tytuł newsa>
+<pusta linia>
+Podsumowanie: <tekst po korekcie>
+<pusta linia>
+Link: <link do newsa>
+
+Nie dodwaj nic więcej, TO BARDZO WAŻNE!!!
+"""
+    return prompt
 
 
 def groq_client(groq_api_key):
@@ -55,20 +92,16 @@ def groq_client(groq_api_key):
 
 
 def model_options(
-    system_prompt: str,
-    user_text: str,
+    prompt: str,
     temperature: int,
     max_tokens: int,
-    json_mode: bool,
 ):
     """Opcje dla Modeli"""
     return dict(
         {
-            "system_prompt": system_prompt,
-            "user_text": user_text,
+            "prompt": prompt,
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "json_mode": json_mode,
         }
     )
 
@@ -80,31 +113,16 @@ def run_groq_model(
 ):
     """Uruchomienie LLM do wskazanych zadan z trybem JSON lub nie"""
     client = groq_client(groq_api_key)
-    if options["json_mode"]:
-        chat_completion = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": options["system_prompt"]},
-                {"role": "user", "content": options["user_text"]},
-            ],
-            temperature=options.get("temperature", 1),
-            max_tokens=options.get("max_tokens", 1024),
-            stream=False,
-            response_format={"type": "json_object"},
-            stop=None,
-        )
-    else:
-        chat_completion = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": options["system_prompt"]},
-                {"role": "user", "content": options["user_text"]},
-            ],
-            temperature=options.get("temperature", 1),
-            max_tokens=options.get("max_tokens", 1024),
-            stream=False,
-            stop=None,
-        )
+    chat_completion = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "user", "content": options["prompt"]},
+        ],
+        temperature=options.get("temperature", 1),
+        max_tokens=options.get("max_tokens", 1500),
+        stream=False,
+        stop=None,
+    )
 
     model_response = chat_completion.choices[0].message.content
     return model_response
