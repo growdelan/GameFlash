@@ -3,7 +3,7 @@
 import os
 from dotenv import load_dotenv
 
-from llms import groq
+from llms import openai, prompts
 from scrapers import jina, lang_webbaseloader
 from utils import utils
 from emails import gmail
@@ -17,8 +17,8 @@ def load_config():
     return {
         "DATABASE_PATH": "news_links.json",
         "URL": "https://konsolowe.info/playstation/ps5/",
-        "GROQ_API": os.getenv("GROQ_API_KEY"),
-        "LLM_MODEL": "llama3-70b-8192",
+        "OPENAI_API": os.getenv("OPENAI_API_KEY"),
+        "LLM_MODEL": "gpt-3.5-turbo-0125",
         "SMTP_SERVER": os.getenv("SMTP_SERVER"),
         "SENDER_MAIL": os.getenv("SENDER_MAIL"),
         "SENDER_PASS": os.getenv("SENDER_PASS"),
@@ -33,13 +33,13 @@ def fetch_and_process_news(config):
     utils.initialize_database(config["DATABASE_PATH"])
 
     news = jina.jina_scraper(url=config["URL"])
-    news_model_options = groq.model_options(
-        prompt=groq.news_prompt(news),
+    news_model_options = openai.model_options(
+        prompt=prompts.news_prompt(news),
         temperature=0,
         max_tokens=1600,
     )
-    news_response = groq.run_groq_model(
-        groq_api_key=config["GROQ_API"],
+    news_response = openai.run_openai_model(
+        openai_api_key=config["OPENAI_API"],
         model=config["LLM_MODEL"],
         options=news_model_options,
     )
@@ -62,13 +62,13 @@ def summarize_news(config, new_links):
     news_to_corrected = []
     for news in new_links:
         read_news = lang_webbaseloader.webbaseloader(url=news)
-        summary_model_options = groq.model_options(
-            prompt=groq.summary_prompt(read_news),
+        summary_model_options = openai.model_options(
+            prompt=prompts.summary_prompt(read_news),
             temperature=0.8,
             max_tokens=1024,
         )
-        summary_news = groq.run_groq_model(
-            groq_api_key=config["GROQ_API"],
+        summary_news = openai.run_openai_model(
+            openai_api_key=config["OPENAI_API"],
             model=config["LLM_MODEL"],
             options=summary_model_options,
         )
@@ -84,13 +84,13 @@ def news_proofreading(config, news_to_corrected):
     """Przeprowadza korektę na podsumowanych newsach"""
     news_to_send = []
     for news in news_to_corrected:
-        proofreading_model_options = groq.model_options(
-            prompt=groq.proofreading_prompt(news),
+        proofreading_model_options = openai.model_options(
+            prompt=prompts.proofreading_prompt(news),
             temperature=1,
             max_tokens=1024,
         )
-        proofreading_news = groq.run_groq_model(
-            groq_api_key=config["GROQ_API"],
+        proofreading_news = openai.run_openai_model(
+            openai_api_key=config["OPENAI_API"],
             model=config["LLM_MODEL"],
             options=proofreading_model_options,
         )

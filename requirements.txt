@@ -3,3 +3,4 @@ requests == 2.32.3
 groq == 0.8.0
 bs4 == 0.0.2
 langchain_community == 0.2.5
+openai == 1.35.3

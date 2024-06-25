@@ -1,12 +1,14 @@
-"""Funkcje dotyczące konfigurajic LLM - Groq"""
+"""Funkcje dotyczące konfigurajic LLM - OpenAI"""
 
-from groq import Groq
+# pylint: disable=R0801
+
+from openai import OpenAI
 
 
-def groq_client(groq_api_key):
-    """Inicjalizacja klienta Groq"""
-    client = Groq(
-        api_key=groq_api_key,
+def openai_client(openai_api_key):
+    """Inicjalizacja klienta openai"""
+    client = OpenAI(
+        api_key=openai_api_key,
     )
     return client
 
@@ -26,13 +28,13 @@ def model_options(
     )
 
 
-def run_groq_model(
-    groq_api_key: str,
+def run_openai_model(
+    openai_api_key: str,
     model: str,
     options: dict,
 ):
     """Uruchomienie LLM do wskazanych zadan z trybem JSON lub nie"""
-    client = groq_client(groq_api_key)
+    client = openai_client(openai_api_key)
     chat_completion = client.chat.completions.create(
         model=model,
         messages=[
