@@ -7,22 +7,23 @@ from groq import Groq
 def news_prompt(context):
     """Prompt dla wyciągania linków do JSON"""
     prompt = f"""
-Działaj jako ekspert w przetwarzaniu tekstu i ekstrakcji danych.
+Act as an expert in text processing and data extraction.
 
-### Zadanie
-Twoim zadaniem jest wyekstrahowanie wszystkich linków z podanego tekstu i zapisanie ich w formacie JSON. Linki należy umieścić w tablicy w formacie: {{ "links": ["link1", "link2", "link3"] }}. Upewnij się, że każdy link jest zapisany jako osobny element tablicy.
+### Task
+Your task is to extract all the links from the given text and save them in JSON format. The links should be placed in an array in the format: {{ "links": ["link1", "link2", "link3"] }}. Make sure each link is stored as a separate array element.
 
-### Kontekst
-Użytkownik podał tekst zawierający linki, które trzeba wyekstrahować. Format linku który szukasz do ekstrakcji wygląda następująco: https://konsolowe.info/<rok>/<miesiąc>/<tytuł/. Linki wyglądające inaczej pomiń.
+### Context
+A user has provided text containing links that need to be extracted. The format of the link you are looking to extract looks like the following: https://konsolowe.info/<year>/<month>/<title/. Skip links that look different (THIS IS VERY IMPORTANT!!!).
 
-### Format odpowiedzi
-Odpowiedź musi być w formacie słownika z kluczem "links", gdzie wartością będzie tablica zawierająca wszystkie wyekstrahowane linki.
+### Response format
+1. do not start with "Here is the..."
+2. The answer must be in dictionary format with the key "links", where the value will be an array containing all the extracted links.
 
-Przykład odpowiedzi: {{ "links": ["https://konsolowe.info/2024/06/promocja-steelbook-w-preorderach-call-of-duty-black-ops-6/", "https://konsolowe.info/2024/06/xdefiant-juz-jutro-z-nowym-trybem/", "https://konsolowe.info/2024/06/charytatywna-akcja-pink-mercy-powroci-w-overwatch-2/"] }}
+Example of a response: {{ "links": ["https://konsolowe.info/2024/06/promocja-steelbook-w-preorderach-call-of-duty-black-ops-6/", "https://konsolowe.info/2024/06/xdefiant-juz-jutro-z-nowym-trybem/", "https://konsolowe.info/2024/06/charytatywna-akcja-pink-mercy-powroci-w-overwatch-2/"] }}
 
-Musisz odpowiedzieć tylko we wskazanym formacie. Nie dodawaj nic więcej!
+3. You must only reply in the format indicated. Do not add anything else!
 
-### Dane wejściowe
+### Input data
 {context}
 """
     return prompt
@@ -34,22 +35,24 @@ Musisz odpowiedzieć tylko we wskazanym formacie. Nie dodawaj nic więcej!
 def summary_prompt(context):
     """Prompt do podsumowywania newsów"""
     prompt = f"""
-Działaj jako ekspert w dziedzinie gier wideo.
+Act as an expert in the field of video games.
 
-Twoim zadaniem jest stworzenie podsumowania dostarczonego tekstu z branży gier w języku polskim. Podsumowanie powinno zawierać najważniejsze informacje, kluczowe punkty oraz ogólny przegląd treści, aby zapewnić pełne zrozumienie tekstu w maksymalnie 300 słowach.
+Your task is to create a summary of a provided text from the gaming industry in Polish language. The summary should include the most important information, key points and a general overview of the content to ensure a full understanding of the text in up to 300 words.
 
-### Kontekst
-Podany tekst pochodzi z branży gier i może obejmować różne aspekty, takie jak recenzje gier, analizy rynkowe, wywiady z twórcami gier, aktualizacje dotyczące gier czy trendy w branży. Ważne jest, aby uchwycić główne idee i przekazać je w zwięzły i zrozumiały sposób.
+### Context
+The text provided is from the games industry and can cover various aspects such as game reviews, market analysis, interviews with game developers, game updates or industry trends. It is important to capture the main ideas and convey them in a concise and understandable way.
 
-### Format odpowiedzi
-Odpowiedź ZAWSZE musi być w następującym formacie:
+### Response format
+The response must ALWAYS be in the following format:
 
-Tytuł: <tutuł newsa>
-<pusta linia>
-Podsumowanie: <podsumowana treść>
-<pusta linia>
+Tytuł: <news title>.
+<empty line>.
+Podsumowanie: <summary content>.
+<empty line>.
 
-### Dane wejściowe
+The answer must be in Polish!
+
+### Input data
 {context}
 """
     return prompt
@@ -58,27 +61,28 @@ Podsumowanie: <podsumowana treść>
 def proofreading_prompt(context):
     """Prompt do korekty podsumowanych tekstów"""
     prompt = f"""
-Działaj jako ekspert w korekcie tekstów.
+Act as an expert in proofreading.
 
-### Zadanie
-Twoim zadaniem jest przeprowadzenie profesjonalnej korekty dostarczonego tekstu. Korekta powinna obejmować poprawienie wszelkich błędów gramatycznych, interpunkcyjnych i stylistycznych. Upewnij się, że tekst jest spójny, jasny i płynny. Jeśli znajdziesz jakiekolwiek fragmenty, które mogą zostać sformułowane lepiej, proszę o ich poprawę. Zwróć uwagę na ton i styl tekstu, dostosowując go odpowiednio do zamierzonej publiczności.
+### The task
+Your task is to carry out professional proofreading of the text provided. Proofreading should include correcting any grammatical, punctuation and stylistic errors. Make sure the text is coherent, clear and flowing. If you find any passages that could be worded better, please improve them. Pay attention to the tone and style of the text, adapting it appropriately for the intended audience.
 
-### Kontekst
-Tekst jest przeznaczony do publikacji i powinien być napisany w profesjonalnym tonie. Ważne jest, aby zachować intencję i znaczenie oryginalnego tekstu, jednocześnie poprawiając jego czytelność i poprawność językową.
+### Context
+The text is intended for publication and should be written in a professional tone. It is important to retain the intention and meaning of the original text, while improving readability and linguistic accuracy.
 
-### Dane wejściowe
+### Input
 {context}
 
-### Format odpowiedzi
-Odpowiedz musi być w języku polskim i gotowa do publikacji. ZAWSZE używaj poniższego formatu:
+### Response format
+1. the response must be in Polish
+2. do not start with "Here is the".
+3. do not add anything from yourself
+4. do not write the changes you have made
+5. response format:
+Tytuł: <original news title>
 
-Tytuł: <oryginalny tytuł newsa>
-<pusta linia>
-Podsumowanie: <tekst po korekcie>
-<pusta linia>
-Link: <link do newsa>
+Podsumowanie: <text after correction>.
 
-Nie dodwaj nic więcej, TO BARDZO WAŻNE!!!
+Link: <link to news item>
 """
     return prompt
 
