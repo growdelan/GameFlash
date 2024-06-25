@@ -13,14 +13,15 @@ Act as an expert in text processing and data extraction.
 Your task is to extract all the links from the given text and save them in JSON format. The links should be placed in an array in the format: {{ "links": ["link1", "link2", "link3"] }}. Make sure each link is stored as a separate array element.
 
 ### Context
-A user has provided text containing links that need to be extracted. The format of the link you are looking to extract looks like the following: https://konsolowe.info/<year>/<month>/<title/. Skip links that look different.
+A user has provided text containing links that need to be extracted. The format of the link you are looking to extract looks like the following: https://konsolowe.info/<year>/<month>/<title/. Skip links that look different (THIS IS VERY IMPORTANT!!!).
 
 ### Response format
-The answer must be in dictionary format with the key "links", where the value will be an array containing all the extracted links.
+1. do not start with "Here is the..."
+2. The answer must be in dictionary format with the key "links", where the value will be an array containing all the extracted links.
 
 Example of a response: {{ "links": ["https://konsolowe.info/2024/06/promocja-steelbook-w-preorderach-call-of-duty-black-ops-6/", "https://konsolowe.info/2024/06/xdefiant-juz-jutro-z-nowym-trybem/", "https://konsolowe.info/2024/06/charytatywna-akcja-pink-mercy-powroci-w-overwatch-2/"] }}
 
-You must only reply in the format indicated. Do not add anything else!
+3. You must only reply in the format indicated. Do not add anything else!
 
 ### Input data
 {context}
