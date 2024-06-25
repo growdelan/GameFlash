@@ -7,23 +7,23 @@ from groq import Groq
 def news_prompt(context):
     """Prompt dla wyciągania linków do JSON"""
     prompt = f"""
-Act as an expert in text processing and data extraction.
+Act as an expert in web data extraction.
 
 ### Task
-Your task is to extract all the links from the given text and save them in JSON format. The links should be placed in an array in the format: {{ "links": ["link1", "link2", "link3"] }}. Make sure each link is stored as a separate array element.
+Your task is to extract all links from a specified webpage that match the URL pattern "https://konsolowe.info/<year>/<month>/<title>/". Each URL component (year, month, title) should be dynamically identified from the webpage's content.
 
 ### Context
-A user has provided text containing links that need to be extracted. The format of the link you are looking to extract looks like the following: https://konsolowe.info/<year>/<month>/<title/. Skip links that look different (THIS IS VERY IMPORTANT!!!).
+Consider that the webpage may contain various URL formats, but only those exactly matching the pattern are of interest. Also, remember that links can be dispersed throughout different parts of the page, in the text, footer, or even hidden elements like scripts or HTML comments.
 
-### Response format
-1. do not start with "Here is the..."
-2. The answer must be in dictionary format with the key "links", where the value will be an array containing all the extracted links.
+### Response Format
+Output the results in a JSON format with a key "links" and a value that is a list of links. For example: {{ "links": ["https://konsolowe.info/2023/06/example-title/", "https://konsolowe.info/2024/01/another-title/"] }}.
 
-Example of a response: {{ "links": ["https://konsolowe.info/2024/06/promocja-steelbook-w-preorderach-call-of-duty-black-ops-6/", "https://konsolowe.info/2024/06/xdefiant-juz-jutro-z-nowym-trybem/", "https://konsolowe.info/2024/06/charytatywna-akcja-pink-mercy-powroci-w-overwatch-2/"] }}
+the answer must look like the example. add nothing more!!!!
 
-3. You must only reply in the format indicated. Do not add anything else!
+### Examples
+As an example, if the page contains three links matching the pattern, the response should look like this: {{ "links": ["https://konsolowe.info/2023/05/sample/", "https://konsolowe.info/2023/06/example/", "https://konsolowe.info/2023/07/demo/"] }}.
 
-### Input data
+### Input Data
 {context}
 """
     return prompt
