@@ -35,7 +35,7 @@ def fetch_and_process_news(config):
     news = jina.jina_scraper(url=config["URL"])
     news_model_options = groq.model_options(
         prompt=groq.news_prompt(news),
-        temperature=0,
+        temperature=0.2,
         max_tokens=1600,
     )
     news_response = groq.run_groq_model(
