@@ -3,33 +3,22 @@
 from groq import Groq
 
 
-# pylint: disable=line-too-long
 def news_prompt(context):
     """Prompt dla wyciągania linków do JSON"""
     prompt = f"""
-Act as an expert in web data extraction.
+extract all the links with the following scheme from the given text :
 
-### Task
-Your task is to extract all links from a specified webpage that match the URL pattern "https://konsolowe.info/<year>/<month>/<title>/". Each URL component (year, month, title) should be dynamically identified from the webpage's content.
+https://konsolowe.info/<year>/<month>/
 
-### Context
-Consider that the webpage may contain various URL formats, but only those exactly matching the pattern are of interest. Also, remember that links can be dispersed throughout different parts of the page, in the text, footer, or even hidden elements like scripts or HTML comments.
+response format:
+ {{ "links": [ "link1", "link2" ] }}
 
-### Response Format
-Output the results in a JSON format with a key "links" and a value that is a list of links. For example: {{ "links": ["https://konsolowe.info/2023/06/example-title/", "https://konsolowe.info/2024/01/another-title/"] }}.
+Reply only as in the above schema, do not add anything else, this is very important
 
-the answer must look like the example. add nothing more!!!!
-
-### Examples
-As an example, if the page contains three links matching the pattern, the response should look like this: {{ "links": ["https://konsolowe.info/2023/05/sample/", "https://konsolowe.info/2023/06/example/", "https://konsolowe.info/2023/07/demo/"] }}.
-
-### Input Data
+Input data:
 {context}
 """
     return prompt
-
-
-# pylint: enable=line-too-long
 
 
 def summary_prompt(context):
