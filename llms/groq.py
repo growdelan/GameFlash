@@ -3,12 +3,12 @@
 from groq import Groq
 
 
-def news_prompt(context):
+def news_prompt(year: str, month: str, context: str) -> str:
     """Prompt dla wyciągania linków do JSON"""
     prompt = f"""
 extract all the links with the following scheme from the given text :
 
-https://konsolowe.info/<year>/<month>/
+https://konsolowe.info/{year}/{month}/
 
 response format:
  {{ "links": [ "link1", "link2" ] }}
@@ -21,7 +21,7 @@ Input data:
     return prompt
 
 
-def summary_prompt(context):
+def summary_prompt(context: str) -> str:
     """Prompt do podsumowywania newsów"""
     prompt = f"""
 Act as an expert in the field of video games.
@@ -47,7 +47,7 @@ The answer must be in Polish!
     return prompt
 
 
-def proofreading_prompt(context):
+def proofreading_prompt(context: str) -> str:
     """Prompt do korekty podsumowanych tekstów"""
     prompt = f"""
 Act as an expert in proofreading.

@@ -2,6 +2,15 @@
 
 import os
 import json
+from datetime import datetime
+
+
+def current_yera_and_month():
+    """Obecny rok i miesiąc"""
+    current_date = datetime.now()
+    year = current_date.year
+    month = current_date.strftime("%m")
+    return year, month
 
 
 def parse_news_response(news_resposne: str) -> list:
