@@ -33,8 +33,9 @@ def fetch_and_process_news(config):
     utils.initialize_database(config["DATABASE_PATH"])
 
     news = jina.jina_scraper(url=config["URL"])
+    year, month = utils.current_yera_and_month()
     news_model_options = groq.model_options(
-        prompt=groq.news_prompt(news),
+        prompt=groq.news_prompt(year, month, news),
         temperature=0.2,
         max_tokens=1600,
     )
