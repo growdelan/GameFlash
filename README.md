@@ -1,17 +1,51 @@
 # GameFlash
-Skrypt do podsumowywania newsów z branży gier
 
-## Jak to działa?
+Skrypt do podsumowywania newsow z branzy gier.
 
-Skrypt wykorzystuje [Jina AI](https://jina.ai) do konwersji podanej strony internetowej na czysty format Markdown. Następnie model LLama3 70B wyodrębnia z niej jedynie linki do artykułów. W kolejnym kroku skrypt pobiera treść z każdego z tych artykułów i generuje ich podsumowania.
+## Jak to dziala
+
+Skrypt wykorzystuje [Jina AI](https://jina.ai) do konwersji strony internetowej na czysty Markdown. Nastepnie model Llama 3.3 70B uruchamiany przez [Groq](https://groq.com) wyodrebnia linki do artykulow. W kolejnym kroku aplikacja pobiera tresc kazdego artykulu, generuje podsumowanie po polsku i wysyla wynik e-mailem.
+
+## Wymagania
+
+- `uv`
+- konto Groq i klucz API
+- konto SMTP do wysylki e-maili
+
+## Konfiguracja
+
+1. Skopiuj `.env.example` do `.env`.
+2. Uzupelnij wartosci zmiennych:
+   - `GROQ_API_KEY`
+   - `SMTP_SERVER`
+   - `SENDER_MAIL`
+   - `SENDER_PASS`
+   - `RECIPIENTS`
 
 ## Uruchomienie
 
-Instalujemy potrzebne paczki `pip3 install -r requirements.txt`
+Synchronizacja srodowiska:
 
-Model LLama3 70B jest używany za pośrednictwem [Groq](https://groq.com), dlatego wymagany jest klucz API, który można uzyskać [tutaj](https://console.groq.com/keys)
+```bash
+uv sync
+```
 
-Aby skrypt działał poprawnie, należy wypełnić zawartość pliku `.env.example` oraz zmienić jego nazwę na `.env`
+Uruchomienie aplikacji:
 
-Przykładowy wynik:
-![alt text](./img/01.png "Screen 01")
+```bash
+uv run main.py
+```
+
+## Testy
+
+Projekt uzywa `unittest`. Standardowa komenda:
+
+```bash
+uv run python -m unittest discover -s tests -p "test_*.py"
+```
+
+Obecnie repo nie zawiera jeszcze katalogu `tests/`.
+
+## Przykladowy wynik
+
+![Przykladowy wynik](/Users/gohan/IT/DevOps/Programowanie/Python/Projekty/GameFlash/img/01.png)
