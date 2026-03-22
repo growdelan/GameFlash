@@ -4,7 +4,7 @@ Skrypt do podsumowywania newsow z branzy gier.
 
 ## Jak to dziala
 
-Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista kandydatow do przetworzenia jest wyciagana bezposrednio z HTML strony listingu, a nowe linki sa zapisywane do arkusza przed dalszym przetwarzaniem. Pelna tresc artykulu jest pobierana przez mirror [Jina AI](https://jina.ai), nastepnie model Llama 3.3 70B uruchamiany przez [Groq](https://groq.com) przygotowuje podsumowanie i korekte, a wynik trafia do zbiorczego e-maila.
+Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista kandydatow do przetworzenia jest wyciagana bezposrednio z HTML strony listingu, a nowe linki sa zapisywane do arkusza przed dalszym przetwarzaniem. Pelna tresc artykulu jest pobierana przez mirror [Jina AI](https://jina.ai), nastepnie model Groq wskazany w `LLM_MODEL` przygotowuje podsumowanie i korekte, a wynik trafia do zbiorczego e-maila.
 
 ## Wymagania
 
@@ -18,6 +18,7 @@ Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista k
 1. Skopiuj `.env.example` do `.env`.
 2. Uzupelnij wartosci zmiennych:
    - `GROQ_API_KEY`
+   - `LLM_MODEL`
    - `GOOGLE_SHEET_ID`
    - `GOOGLE_SHEET_WORKSHEET`
    - `GSPREAD_SERVICE_ACCOUNT_FILE`

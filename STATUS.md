@@ -3,6 +3,7 @@
 ## Co działa
 - Glowny skrypt pobiera newsy, podsumowuje je i wysyla e-mail.
 - Zarzadzanie zaleznosciami zostalo przeniesione na `uv`.
+- Model LLM jest konfigurowany przez `LLM_MODEL` w `.env`.
 - Stan przetworzonych linkow jest odczytywany i zapisywany w Google Sheets.
 - Listing newsow jest parsowany bezposrednio z HTML bez uzycia LLM.
 - Pelna tresc artykulow jest pobierana przez mirror Jina.
@@ -15,6 +16,7 @@
 - Milestone 1.1: deterministyczna ekstrakcja linkow z HTML.
 - Milestone 1.2: finalny pipeline przetwarzania linkow i obsluga bledow po append.
 - Bazowy zestaw testow `unittest` dla Google Sheets i deduplikacji.
+- Aktualizacja bezposrednich zaleznosci do najnowszych kompatybilnych wersji.
 
 ## Co jest w trakcie
 - Brak otwartych milestone'ow z aktualnej roadmapy.
@@ -32,3 +34,4 @@
 - 2026-03-22: wdrozenie Milestone 1.0, testy lokalne i walidacja live Google Sheets.
 - 2026-03-22: wdrozenie Milestone 1.1, testy lokalne i walidacja live parsera listingu.
 - 2026-03-22: wdrozenie Milestone 1.2, testy lokalne i walidacja live finalnego pipeline'u.
+- 2026-03-22: model LLM przeniesiony do `LLM_MODEL` w `.env` i odswiezone zaleznosci wykonawcze.

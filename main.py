@@ -18,7 +18,9 @@ def load_config():
     return {
         "URL": "https://konsolowe.info/playstation/ps5/",
         "GROQ_API": os.getenv("GROQ_API_KEY"),
-        "LLM_MODEL": "llama-3.3-70b-versatile",
+        "LLM_MODEL": os.getenv(
+            "LLM_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"
+        ),
         "SMTP_SERVER": os.getenv("SMTP_SERVER"),
         "SENDER_MAIL": os.getenv("SENDER_MAIL"),
         "SENDER_PASS": os.getenv("SENDER_PASS"),
