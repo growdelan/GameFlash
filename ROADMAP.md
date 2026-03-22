@@ -97,3 +97,24 @@ Zakres:
 - integracja nowej deduplikacji z istniejącym etapem podsumowania i e-maila
 - aktualizacja README i pozostałej dokumentacji operacyjnej po implementacji
 - przygotowanie testów i smoke testów dla nowego przepływu bez realnego IO
+
+---
+
+## Milestone 1.3: Stylowany e-mail HTML dla GameFlash (done)
+
+Cel:
+- zastapic obecna wiadomosc `plain text` stylowanym mailem HTML dopasowanym do newsow gamingowych
+- zachowac kompatybilny fallback `plain text` i brak regresji w istniejacym pipeline'ie wysylki
+
+Definition of Done:
+- aplikacja generuje wiadomosc multipart zawierajaca `text/plain` oraz `text/html`
+- wariant HTML prezentuje kazdy news jako osobna, czytelna sekcje z tytulem, streszczeniem i CTA do pelnego artykulu
+- styl HTML wykorzystuje osadzony CSS bez zaleznosci od zewnetrznych fontow, CDN, zdalnych stylow i hostowanych obrazow jako wymogu v1
+- uklad wiadomosci pozostaje czytelny dla wielu newsow oraz na waskich ekranach
+- testy lokalne pokrywaja render HTML, fallback `plain text` i brak zaleznosci od realnego SMTP
+
+Zakres:
+- rozszerzenie warstwy mailowej o renderer HTML dla wiadomosci GameFlash
+- przygotowanie maila multipart z warstwa `text/plain` i `text/html`
+- zaprojektowanie nowoczesnej, gamingowej stylistyki wiadomosci
+- dostosowanie testow jednostkowych i smoke testow do nowego formatu e-maila
