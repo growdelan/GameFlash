@@ -79,7 +79,7 @@ Zakres:
 
 ---
 
-## Milestone 1.2: Domknięcie nowego pipeline'u przetwarzania linków (planned)
+## Milestone 1.2: Domknięcie nowego pipeline'u przetwarzania linków (done)
 
 Cel:
 - spiąć nowy przepływ od wykrycia linku do wysyłki e-maila bez regresji biznesowej

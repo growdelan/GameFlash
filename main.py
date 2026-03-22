@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 
 from llms import groq
-from scrapers import lang_webbaseloader, listing
+from scrapers import jina, listing
 from emails import gmail
 from storage import google_sheets
 from utils import utils
@@ -71,17 +71,22 @@ def summarize_news(config, new_links):
     """
     news_to_corrected = []
     for news in new_links:
-        read_news = lang_webbaseloader.webbaseloader(url=news)
-        summary_model_options = groq.model_options(
-            prompt=groq.summary_prompt(read_news),
-            temperature=0.8,
-            max_tokens=1024,
-        )
-        summary_news = groq.run_groq_model(
-            groq_api_key=config["GROQ_API"],
-            model=config["LLM_MODEL"],
-            options=summary_model_options,
-        )
+        try:
+            read_news = jina.fetch_article_text(url=news)
+            summary_model_options = groq.model_options(
+                prompt=groq.summary_prompt(read_news),
+                temperature=0.8,
+                max_tokens=1024,
+            )
+            summary_news = groq.run_groq_model(
+                groq_api_key=config["GROQ_API"],
+                model=config["LLM_MODEL"],
+                options=summary_model_options,
+            )
+        except Exception as exc:
+            print(f"Nie udalo sie przetworzyc artykulu {news}: {exc}")
+            continue
+
         news_to_corrected.append(
             f"{summary_news}\n\nLink: {news}\n\n################################"
         )
@@ -94,16 +99,21 @@ def news_proofreading(config, news_to_corrected):
     """Przeprowadza korektę na podsumowanych newsach"""
     news_to_send = []
     for news in news_to_corrected:
-        proofreading_model_options = groq.model_options(
-            prompt=groq.proofreading_prompt(news),
-            temperature=1,
-            max_tokens=1024,
-        )
-        proofreading_news = groq.run_groq_model(
-            groq_api_key=config["GROQ_API"],
-            model=config["LLM_MODEL"],
-            options=proofreading_model_options,
-        )
+        try:
+            proofreading_model_options = groq.model_options(
+                prompt=groq.proofreading_prompt(news),
+                temperature=1,
+                max_tokens=1024,
+            )
+            proofreading_news = groq.run_groq_model(
+                groq_api_key=config["GROQ_API"],
+                model=config["LLM_MODEL"],
+                options=proofreading_model_options,
+            )
+        except Exception as exc:
+            print(f"Nie udalo sie wykonac korekty newsa: {exc}")
+            continue
+
         news_to_send.append(f"{proofreading_news}\n\n################################")
         print(news_to_send)
     print(f"Newsy po korekcie:\n{news_to_send}")
@@ -131,7 +141,13 @@ def main():
     new_links = fetch_and_process_news(config)
     if new_links:
         news_to_corrected = summarize_news(config, new_links)
+        if not news_to_corrected:
+            print("Brak poprawnie przetworzonych newsow do wyslania!")
+            return
         news_to_send = news_proofreading(config, news_to_corrected)
+        if not news_to_send:
+            print("Brak newsow po korekcie do wyslania!")
+            return
         sending_emails(config, news_to_send)
     else:
         print("Brak nowych newsów do wysłania!")

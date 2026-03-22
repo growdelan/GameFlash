@@ -1,10 +1,11 @@
-"""Scraper"""
+"""Pobieranie tresci artykulow przez mirror Jina."""
 
-import requests  # type: ignore
+import requests
 
 
-def jina_scraper(url: str):
-    """Scrapowanie za pomocą JINA AI"""
+def fetch_article_text(url: str) -> str:
+    """Pobiera tresc artykulu przez mirror Jina."""
     jina_ai = "https://r.jina.ai/"
-    news = requests.get(f"{jina_ai}{url}")
-    return str(news.content)
+    response = requests.get(f"{jina_ai}{url}", timeout=30)
+    response.raise_for_status()
+    return response.text

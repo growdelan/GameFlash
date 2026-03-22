@@ -22,6 +22,8 @@ Planowane rozszerzenie zakresu wynikające z PRD `001-google-sheets-link-store-p
 - zastąpienie ekstrakcji linków parserem HTML,
 - dopisywanie nowych linków do Google Sheets przed dalszym przetwarzaniem.
 
+Rozszerzenie z PRD `001-google-sheets-link-store-prd.md` zostalo wdrozone.
+
 ---
 
 ## Zakres funkcjonalny (high-level)
@@ -41,7 +43,7 @@ Główny przepływ:
 5. Wyciąga linki z HTML na podstawie wzorca bieżącego roku i miesiąca.
 6. Usuwa duplikaty z bieżącego przebiegu i odrzuca linki obecne już w Google Sheets.
 7. Dla każdego nowego linku wykonuje append do Google Sheets.
-8. Dla poprawnie dopisanych linków pobiera treść artykułów przez `WebBaseLoader`.
+8. Dla poprawnie dopisanych linków pobiera treść artykułów przez `https://r.jina.ai/<link>`.
 9. Generuje podsumowania i wykonuje ich korektę językową.
 10. Wysyła pojedynczy e-mail ze wszystkimi nowymi podsumowaniami.
 
@@ -70,13 +72,13 @@ Architektura ma postać prostego skryptu orkiestrującego z kilkoma modułami po
 1. Główne komponenty systemu
 - `main.py` odpowiada za sekwencję wykonania całego procesu.
 - `scrapers/listing.py` pobiera i parsuje HTML listingu newsów.
-- `scrapers/lang_webbaseloader.py` pobiera treść pojedynczego artykułu.
+- `scrapers/jina.py` pobiera treść pojedynczego artykułu przez mirror Jina.
 - `llms/groq.py` buduje prompty i wykonuje wywołania modelu Groq.
 - `storage/google_sheets.py` obsługuje odczyt i zapis stanu linków w Google Sheets.
 - `emails/gmail.py` składa i wysyła wiadomość SMTP.
 
 Planowane rozszerzenie komponentów wynikające z PRD `001-google-sheets-link-store-prd.md`:
-- przełączenie pobierania pełnej treści artykułów na mirror `https://r.jina.ai/<link>`.
+- brak dodatkowych nierozliczonych elementow z tego PRD.
 
 2. Przepływ danych między komponentami
 - Wejście konfiguracyjne pochodzi z `.env` i stałych zaszytych w `main.py`.
@@ -85,7 +87,7 @@ Planowane rozszerzenie komponentów wynikające z PRD `001-google-sheets-link-st
 - Listing newsów jest pobierany jako HTML bezpośrednio z URL źródłowego.
 - Parser HTML wyodrębnia linki zgodne ze wzorcem `https://konsolowe.info/<YYYY>/<MM>/`.
 - Każdy nowy link jest najpierw zapisywany w Google Sheets.
-- Dla poprawnie zapisanych linków pobierana jest pełna treść artykułów.
+- Dla poprawnie zapisanych linków pobierana jest pełna treść artykułów przez mirror Jina.
 - Model Groq generuje podsumowanie, a następnie osobny prompt wykonuje korektę tekstu.
 - Gotowe sekcje podsumowań są łączone w jeden e-mail wysyłany przez SMTP.
 
@@ -106,7 +108,7 @@ Docelowy przepływ danych wynikający z PRD `001-google-sheets-link-store-prd.md
 
 Po wdrożeniu PRD `001-google-sheets-link-store-prd.md`:
 - LLM pozostanie wyłącznie komponentem generowania treści.
-- pełna treść artykułów ma zostać przełączona z `WebBaseLoader` na mirror Jina w Milestone 1.2.
+- pełna treść artykułów jest pobierana przez mirror Jina.
 
 ---
 
@@ -119,12 +121,12 @@ Lista kluczowych komponentów technicznych i ich odpowiedzialności.
 - `requests` do pobrania HTML listingu newsów.
 - `bs4` i `BeautifulSoup` do parsowania linków z listingu.
 - `gspread` i `google-auth` do integracji z Google Sheets przez konto serwisowe.
-- `langchain-community` i `WebBaseLoader` do pobierania treści artykułów.
+- `requests` do pobierania treści artykułów przez mirror Jina.
 - `groq` do komunikacji z modelem LLM.
 - standardowa biblioteka `smtplib` i `ssl` do wysyłki e-maili.
 
 Planowane rozszerzenia techniczne wynikające z PRD `001-google-sheets-link-store-prd.md`:
-- pobieranie pełnej treści artykułów przez mirror `https://r.jina.ai/<link>`.
+- brak dodatkowych zaleznosci wymaganych do domkniecia tego PRD.
 
 ---
 
@@ -180,9 +182,9 @@ Każda decyzja powinna zawierać:
 - Uzasadnienie: w repo istnieje już sprawdzony wzorzec integracji z tym mechanizmem.
 - Konsekwencje: uruchomienie będzie wymagało pliku JSON konta serwisowego poza repozytorium i nowych zmiennych środowiskowych.
 
-- Konflikt specyfikacji (dotyczy PRD: `001-google-sheets-link-store-prd.md`): obecna implementacja nadal pobiera pełną treść artykułu przez `WebBaseLoader`, podczas gdy docelowy kierunek z PRD przewiduje mirror `https://r.jina.ai/<link>`.
-- Uzasadnienie: Milestone 1.1 został wdrożony, ale Milestone 1.2 pozostaje jeszcze przed realizacją.
-- Konsekwencje: po wdrożeniu 1.1 konflikt dotyczy już tylko sposobu pobierania pełnej treści artykułów.
+- Konflikt specyfikacji (dotyczy PRD: `001-google-sheets-link-store-prd.md`): brak aktywnego konfliktu po wdrozeniu Milestone 1.2.
+- Uzasadnienie: zrodlo stanu, ekstrakcja listingu i pobieranie tresci artykulu zostaly doprowadzone do stanu zgodnego z PRD.
+- Konsekwencje: kolejne zmiany moga juz wychodzic od nowego, docelowego pipeline'u, a nie od stanu przejsciowego.
 
 ---
 
@@ -209,7 +211,8 @@ Minimalne kryteria akceptacji dla rozszerzenia z PRD `001-google-sheets-link-sto
 - błąd append do Google Sheets blokuje przetwarzanie tego linku w bieżącym przebiegu,
 - po udanym append aplikacja kontynuuje dalsze przetwarzanie linku,
 - LLM nie uczestniczy już w ekstrakcji linków z listingu,
-- pełna treść artykułu nie jest jeszcze pobierana przez `https://r.jina.ai/<link>`; to pozostaje zakresem Milestone 1.2.
+- pelna treść artykułu jest pobierana przez `https://r.jina.ai/<link>`,
+- błąd pobrania lub podsumowania po udanym append nie powoduje ponownego podjęcia linku w kolejnym przebiegu.
 
 ---
 
@@ -226,11 +229,11 @@ Minimalne kryteria akceptacji dla rozszerzenia z PRD `001-google-sheets-link-sto
 - Aktualny kod odpowiada etapowi wczesnego, działającego workflow end-to-end, ale nadal nie spełnia wszystkich oczekiwań jakościowych z Milestone 0.5, głównie z powodu braku testów i twardo zakodowanej części konfiguracji.
 - PRD `001-google-sheets-link-store-prd.md` wprowadza kolejny przyrost funkcjonalny: migrację deduplikacji linków do Google Sheets i usunięcie LLM z kroku ekstrakcji linków.
 - Realizacja tego PRD wymaga nowych milestone'ów po Milestone 0.5, obejmujących integrację z Google Sheets, migrację przepływu i domknięcie jakości operacyjnej.
-- Milestone 1.0 i 1.1 są już wdrożone; kolejna praca koncentruje się na przełączeniu pobierania pełnej treści artykułu i domknięciu docelowego pipeline'u.
+- Milestone 1.0, 1.1 i 1.2 sa wdrozone, a aktualna roadmapa nie zawiera juz otwartych milestone'ow funkcjonalnych.
 
 ---
 
 ## Status specyfikacji
 - Data utworzenia: 2026-03-21
 - Ostatnia aktualizacja: 2026-03-22
-- Aktualny zakres obowiązywania: stan repo po wdrozeniu Milestone 1.1 oraz zatwierdzony kierunek dalszej realizacji PRD `001-google-sheets-link-store-prd.md`
+- Aktualny zakres obowiązywania: stan repo po wdrozeniu Milestone 1.2 i domknieciu PRD `001-google-sheets-link-store-prd.md`
