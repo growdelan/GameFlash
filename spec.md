@@ -24,6 +24,14 @@ Planowane rozszerzenie zakresu wynikające z PRD `001-google-sheets-link-store-p
 
 Rozszerzenie z PRD `001-google-sheets-link-store-prd.md` zostalo wdrozone.
 
+Planowane rozszerzenie zakresu wynikające z PRD `002-gaming-email-styles-prd.md`:
+- zastapienie obecnego e-maila `plain text` stylowanym mailem HTML,
+- zachowanie fallbacku `plain text` w wiadomosci multipart,
+- prezentowanie kazdego newsa jako osobnej sekcji lub karty,
+- dostosowanie wygladu wiadomosci do nowoczesnego, gamingowego charakteru produktu.
+
+Rozszerzenie z PRD `002-gaming-email-styles-prd.md` zostalo wdrozone.
+
 ---
 
 ## Zakres funkcjonalny (high-level)
@@ -58,6 +66,18 @@ Docelowy przepływ wynikający z PRD `001-google-sheets-link-store-prd.md`:
 8. Dopiero po udanym append aplikacja pobiera pełną treść artykułu przez `https://r.jina.ai/<link>`.
 9. Aplikacja generuje podsumowania po polsku i wysyła zbiorczy e-mail.
 
+Docelowy przeplyw wynikajacy z PRD `002-gaming-email-styles-prd.md`:
+1. Aplikacja laduje konfiguracje z `.env`.
+2. Aplikacja uwierzytelnia sie do Google Sheets kontem serwisowym.
+3. Aplikacja odczytuje istniejace linki z kolumny `Links`.
+4. Aplikacja pobiera HTML strony listingu newsow bezposrednio ze zrodlowego URL.
+5. Aplikacja wyciaga linki z HTML na podstawie selektora odpowiadajacego biezacemu rokowi i miesiacowi.
+6. Aplikacja usuwa duplikaty z biezacego przebiegu i odrzuca linki obecne juz w Google Sheets.
+7. Kazdy nowy link jest najpierw dopisywany do Google Sheets.
+8. Dopiero po udanym append aplikacja pobiera pelna tresc artykulu przez `https://r.jina.ai/<link>`.
+9. Aplikacja generuje podsumowania po polsku i przygotowuje dwa warianty wiadomosci: `text/plain` oraz `text/html`.
+10. Aplikacja wysyla jeden e-mail multipart, w ktorym HTML stanowi glowna warstwe prezentacji, a `plain text` pozostaje fallbackiem kompatybilnosci.
+
 Czego aplikacja obecnie nie robi:
 - nie waliduje kompleksowo konfiguracji przed startem,
 - nie obsługuje wielu źródeł wejściowych ani wielu modeli,
@@ -80,6 +100,10 @@ Architektura ma postać prostego skryptu orkiestrującego z kilkoma modułami po
 Planowane rozszerzenie komponentów wynikające z PRD `001-google-sheets-link-store-prd.md`:
 - brak dodatkowych nierozliczonych elementow z tego PRD.
 
+Rozszerzenie komponentow wynikajace z PRD `002-gaming-email-styles-prd.md`:
+- `emails/gmail.py` ma skladac wiadomosc multipart z czescia `text/plain` oraz `text/html`,
+- warstwa maili ma zostac rozszerzona o lekki renderer HTML dla stylowanej wiadomosci GameFlash.
+
 2. Przepływ danych między komponentami
 - Wejście konfiguracyjne pochodzi z `.env` i stałych zaszytych w `main.py`.
 - Konfiguracja obejmuje także `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_WORKSHEET` i `GSPREAD_SERVICE_ACCOUNT_FILE`.
@@ -100,6 +124,11 @@ Docelowy przepływ danych wynikający z PRD `001-google-sheets-link-store-prd.md
 - Pełna treść artykułu ma być pobierana przez mirror `https://r.jina.ai/<link>`.
 - Model Groq ma pozostać odpowiedzialny wyłącznie za podsumowanie i korektę tekstu.
 
+Docelowy przeplyw danych wynikajacy z PRD `002-gaming-email-styles-prd.md`:
+- gotowe sekcje podsumowan maja zostac przeksztalcone do dwoch reprezentacji: `plain text` oraz `html`,
+- warstwa HTML ma renderowac kazdy news jako osobny blok z tytulem, streszczeniem i CTA do pelnego artykulu,
+- gotowa wiadomosc ma byc wysylana jako multipart przez SMTP bez zaleznosci od zewnetrznych assetow.
+
 3. Granice odpowiedzialności
 - Logika przepływu pozostaje w `main.py`.
 - Integracje z zewnętrznymi usługami są rozdzielone na moduły `scrapers`, `llms` i `emails`.
@@ -109,6 +138,11 @@ Docelowy przepływ danych wynikający z PRD `001-google-sheets-link-store-prd.md
 Po wdrożeniu PRD `001-google-sheets-link-store-prd.md`:
 - LLM pozostanie wyłącznie komponentem generowania treści.
 - pełna treść artykułów jest pobierana przez mirror Jina.
+
+Po wdrozeniu PRD `002-gaming-email-styles-prd.md`:
+- warstwa maili pozostanie odpowiedzialna za dostarczenie wiadomosci przez SMTP,
+- renderer HTML bedzie odpowiadal wyłącznie za prezentacje wiadomosci,
+- fallback `plain text` pozostanie czescia kontraktu wysylki dla kompatybilnosci.
 
 ---
 
@@ -127,6 +161,11 @@ Lista kluczowych komponentów technicznych i ich odpowiedzialności.
 
 Planowane rozszerzenia techniczne wynikające z PRD `001-google-sheets-link-store-prd.md`:
 - brak dodatkowych zaleznosci wymaganych do domkniecia tego PRD.
+
+Rozszerzenia techniczne wynikajace z PRD `002-gaming-email-styles-prd.md`:
+- wykorzystanie standardowych mechanizmow MIME do zbudowania wiadomosci multipart z `text/plain` i `text/html`,
+- osadzony CSS zgodny z typowymi klientami pocztowymi,
+- brak nowej zaleznosci wykonawczej, o ile prosty renderer HTML da sie zrealizowac w oparciu o standardowa biblioteke lub juz obecne zaleznosci.
 
 ---
 
@@ -186,6 +225,26 @@ Każda decyzja powinna zawierać:
 - Uzasadnienie: zrodlo stanu, ekstrakcja listingu i pobieranie tresci artykulu zostaly doprowadzone do stanu zgodnego z PRD.
 - Konsekwencje: kolejne zmiany moga juz wychodzic od nowego, docelowego pipeline'u, a nie od stanu przejsciowego.
 
+- Decyzja (dotyczy PRD: `002-gaming-email-styles-prd.md`): wysylka maili ma zostac rozszerzona z pojedynczego `plain text` body do wiadomosci multipart zawierajacej `text/plain` oraz `text/html`.
+- Uzasadnienie: pozwala to poprawic prezentacje wiadomosci bez utraty kompatybilnosci z klientami pocztowymi i scenariuszami ograniczonego renderowania HTML.
+- Konsekwencje: interfejs warstwy mailowej bedzie musial przygotowywac dwie reprezentacje tej samej tresci i testowac obie sciezki.
+
+- Decyzja (dotyczy PRD: `002-gaming-email-styles-prd.md`): inspiracja z projektu `DramaChecker` ma dotyczyc techniki budowy maila HTML i osadzonego CSS, ale bez kopiowania layoutu 1:1.
+- Uzasadnienie: w sasiednim projekcie istnieje juz sprawdzony wzorzec techniczny, ktory mozna wykorzystac bez utraty tozsamosci wizualnej GameFlash.
+- Konsekwencje: implementacja moze przejac podejscie do renderowania HTML, ale musi przygotowac osobny styl i kolorystyke dla newsow gamingowych.
+
+- Decyzja (dotyczy PRD: `002-gaming-email-styles-prd.md`): stylowana warstwa HTML ma pozostac lekka, bez zaleznosci od zewnetrznych fontow, CDN, zdalnych stylow i hostowanych obrazow jako wymogu v1.
+- Uzasadnienie: ogranicza to ryzyko problemow z kompatybilnoscia klientow pocztowych i utrzymuje prosty charakter projektu.
+- Konsekwencje: implementacja musi opierac sie na osadzonym CSS i tresci tekstowej, a efekt wizualny bedzie budowany glownie ukladem, kontrastem i kolorystyka.
+
+- Konflikt specyfikacji (dotyczy PRD: `002-gaming-email-styles-prd.md`): brak aktywnego konfliktu na etapie planowania.
+- Uzasadnienie: nowe PRD rozszerza jedynie sposob prezentacji i wysylki wiadomosci, bez zmiany logiki pobierania, deduplikacji i podsumowania newsow.
+- Konsekwencje: nowy przyrost moze zostac zaplanowany jako kolejny milestone po Milestone 1.2 bez rewizji poprzednich decyzji funkcjonalnych.
+
+- Konflikt specyfikacji (dotyczy PRD: `002-gaming-email-styles-prd.md`): brak aktywnego konfliktu po wdrozeniu Milestone 1.3.
+- Uzasadnienie: nowy format maila zostal wdrozony bez zmiany logiki pobierania, deduplikacji i podsumowania newsow.
+- Konsekwencje: kolejne zmiany moga rozwijac warstwe prezentacji maila lub kolejne funkcje produktu bez rewizji poprzedniego pipeline'u.
+
 ---
 
 ## Jakość i kryteria akceptacji
@@ -214,6 +273,14 @@ Minimalne kryteria akceptacji dla rozszerzenia z PRD `001-google-sheets-link-sto
 - pelna treść artykułu jest pobierana przez `https://r.jina.ai/<link>`,
 - błąd pobrania lub podsumowania po udanym append nie powoduje ponownego podjęcia linku w kolejnym przebiegu.
 
+Minimalne kryteria akceptacji dla rozszerzenia z PRD `002-gaming-email-styles-prd.md`:
+- dla co najmniej jednego nowego newsa aplikacja przygotowuje wiadomosc HTML z czytelnymi sekcjami zawierajacymi tytul, streszczenie i link do artykulu,
+- wiadomosc e-mail jest wysylana jako multipart zawierajacy `text/plain` oraz `text/html`,
+- fallback `plain text` nadal zawiera komplet informacji o wszystkich newsach z danego przebiegu,
+- styl HTML nie zalezy od zewnetrznych obrazow, fontow ani zdalnych stylow,
+- uklad wiadomosci pozostaje czytelny przy wielu newsach i na waskich ekranach,
+- zmiana formatu wiadomosci nie wprowadza regresji w wysylce do wielu odbiorcow.
+
 ---
 
 ## Zasady zmian i ewolucji
@@ -229,11 +296,12 @@ Minimalne kryteria akceptacji dla rozszerzenia z PRD `001-google-sheets-link-sto
 - Aktualny kod odpowiada etapowi wczesnego, działającego workflow end-to-end, ale nadal nie spełnia wszystkich oczekiwań jakościowych z Milestone 0.5, głównie z powodu braku testów i twardo zakodowanej części konfiguracji.
 - PRD `001-google-sheets-link-store-prd.md` wprowadza kolejny przyrost funkcjonalny: migrację deduplikacji linków do Google Sheets i usunięcie LLM z kroku ekstrakcji linków.
 - Realizacja tego PRD wymaga nowych milestone'ów po Milestone 0.5, obejmujących integrację z Google Sheets, migrację przepływu i domknięcie jakości operacyjnej.
-- Milestone 1.0, 1.1 i 1.2 sa wdrozone, a aktualna roadmapa nie zawiera juz otwartych milestone'ow funkcjonalnych.
+- PRD `002-gaming-email-styles-prd.md` wprowadza kolejny przyrost funkcjonalny: przejscie z maila `plain text` na stylowana wiadomosc HTML z fallbackiem `plain text`.
+- Milestone 1.0, 1.1, 1.2 i 1.3 sa wdrozone, a aktualna roadmapa nie zawiera obecnie otwartych milestone'ow funkcjonalnych.
 
 ---
 
 ## Status specyfikacji
 - Data utworzenia: 2026-03-21
 - Ostatnia aktualizacja: 2026-03-22
-- Aktualny zakres obowiązywania: stan repo po wdrozeniu Milestone 1.2 i domknieciu PRD `001-google-sheets-link-store-prd.md`
+- Aktualny zakres obowiązywania: stan repo po wdrozeniu Milestone 1.3 i domknieciu PRD `002-gaming-email-styles-prd.md`

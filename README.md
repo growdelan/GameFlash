@@ -4,7 +4,7 @@ Skrypt do podsumowywania newsow z branzy gier.
 
 ## Jak to dziala
 
-Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista kandydatow do przetworzenia jest wyciagana bezposrednio z HTML strony listingu, a nowe linki sa zapisywane do arkusza przed dalszym przetwarzaniem. Pelna tresc artykulu jest pobierana przez mirror [Jina AI](https://jina.ai), nastepnie model Groq wskazany w `LLM_MODEL` przygotowuje podsumowanie i korekte, a wynik trafia do zbiorczego e-maila.
+Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista kandydatow do przetworzenia jest wyciagana bezposrednio z HTML strony listingu, a nowe linki sa zapisywane do arkusza przed dalszym przetwarzaniem. Pelna tresc artykulu jest pobierana przez mirror [Jina AI](https://jina.ai), nastepnie model Groq wskazany w `LLM_MODEL` przygotowuje podsumowanie i korekte, a wynik trafia do zbiorczego e-maila wysylanego jako multipart: stylowany HTML z fallbackiem `plain text`.
 
 ## Wymagania
 
@@ -49,7 +49,7 @@ Projekt uzywa `unittest`. Standardowa komenda:
 uv run python -m unittest discover -s tests -p "test_*.py"
 ```
 
-Testy obejmuja Google Sheets, parser listingu oraz finalny pipeline przetwarzania linkow w trybie stubowanym.
+Testy obejmuja Google Sheets, parser listingu, finalny pipeline przetwarzania linkow w trybie stubowanym oraz renderowanie i wysylke stylowanego e-maila HTML bez realnego SMTP.
 
 ## Przykladowy wynik
 

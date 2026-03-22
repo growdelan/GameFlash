@@ -7,7 +7,8 @@
 - Stan przetworzonych linkow jest odczytywany i zapisywany w Google Sheets.
 - Listing newsow jest parsowany bezposrednio z HTML bez uzycia LLM.
 - Pelna tresc artykulow jest pobierana przez mirror Jina.
-- Testy `unittest` dla Milestone 1.0-1.2 przechodza lokalnie.
+- Wiadomosc e-mail jest wysylana jako multipart z fallbackiem `plain text` i stylowana warstwa HTML.
+- Testy `unittest` dla Milestone 1.0-1.3 przechodza lokalnie.
 
 ## Co jest skończone
 - Dodanie dokumentow operacyjnych repo.
@@ -15,6 +16,7 @@
 - Milestone 1.0: integracja z Google Sheets jako baza linkow.
 - Milestone 1.1: deterministyczna ekstrakcja linkow z HTML.
 - Milestone 1.2: finalny pipeline przetwarzania linkow i obsluga bledow po append.
+- Milestone 1.3: stylowany e-mail HTML dla GameFlash z fallbackiem `plain text`.
 - Bazowy zestaw testow `unittest` dla Google Sheets i deduplikacji.
 - Aktualizacja bezposrednich zaleznosci do najnowszych kompatybilnych wersji.
 
@@ -35,3 +37,4 @@
 - 2026-03-22: wdrozenie Milestone 1.1, testy lokalne i walidacja live parsera listingu.
 - 2026-03-22: wdrozenie Milestone 1.2, testy lokalne i walidacja live finalnego pipeline'u.
 - 2026-03-22: model LLM przeniesiony do `LLM_MODEL` w `.env` i odswiezone zaleznosci wykonawcze.
+- 2026-03-22: wdrozenie Milestone 1.3, stylowany e-mail HTML, fallback `plain text` i testy lokalne warstwy maili.
