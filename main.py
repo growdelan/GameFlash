@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 
 from llms import groq
-from scrapers import jina, lang_webbaseloader
+from scrapers import lang_webbaseloader, listing
 from emails import gmail
 from storage import google_sheets
 from utils import utils
@@ -45,21 +45,9 @@ def fetch_and_process_news(config):
     )
     registered_links = google_sheets.read_registered_links(ws)
 
-    news = jina.jina_scraper(url=config["URL"])
+    news = listing.fetch_listing_html(url=config["URL"])
     year, month = utils.current_yera_and_month()
-    news_model_options = groq.model_options(
-        prompt=groq.news_prompt(year, month, news),
-        temperature=0.2,
-        max_tokens=1600,
-    )
-    news_response = groq.run_groq_model(
-        groq_api_key=config["GROQ_API"],
-        model=config["LLM_MODEL"],
-        options=news_model_options,
-    )
-    print(f"Odpowiedź JSON:\n{news_response}\n")
-
-    parse_news_response = utils.parse_news_response(news_response)
+    parse_news_response = listing.extract_news_links(news, year, month)
     new_links = []
     seen_this_run = set()
     for link in parse_news_response:

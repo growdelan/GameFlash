@@ -59,7 +59,7 @@ Zakres:
 
 ---
 
-## Milestone 1.1: Deterministyczna ekstrakcja linków z HTML (planned)
+## Milestone 1.1: Deterministyczna ekstrakcja linków z HTML (done)
 
 Cel:
 - usunąć użycie LLM z kroku wykrywania linków do newsów

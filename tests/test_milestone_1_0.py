@@ -25,9 +25,7 @@ class MilestoneOneTests(unittest.TestCase):
 
         original_authenticate = main.google_sheets.authenticate_gspread
         original_open_sheet = main.google_sheets.open_sheet
-        original_jina_scraper = main.jina.jina_scraper
-        original_model_options = main.groq.model_options
-        original_run_model = main.groq.run_groq_model
+        original_fetch_listing = main.listing.fetch_listing_html
         original_current_year_month = main.utils.current_yera_and_month
         try:
             main.google_sheets.authenticate_gspread = lambda _: object()
@@ -35,19 +33,52 @@ class MilestoneOneTests(unittest.TestCase):
                 object(),
                 worksheet,
             )
-            main.jina.jina_scraper = lambda url: "news-body"
+            main.listing.fetch_listing_html = lambda url: """
+            <a href="https://example.com/existing">Existing</a>
+            <a href="https://example.com/new">New</a>
+            <a href="https://example.com/new">New duplicate</a>
+            """
             main.utils.current_yera_and_month = lambda: (2026, "03")
-            main.groq.model_options = lambda prompt, temperature, max_tokens: {
-                "prompt": prompt,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-            }
-            main.groq.run_groq_model = lambda groq_api_key, model, options: (
-                '{"links": ['
-                '"https://example.com/existing", '
-                '"https://example.com/new", '
-                '"https://example.com/new"'
-                "]}"
+
+            new_links = main.fetch_and_process_news(
+                {
+                    "GSPREAD_SERVICE_ACCOUNT_FILE": "service_account.json",
+                    "GOOGLE_SHEET_ID": "sheet-id",
+                    "GOOGLE_SHEET_WORKSHEET": "Arkusz1",
+                    "URL": "https://konsolowe.info/playstation/ps5/",
+                }
+            )
+
+            self.assertEqual([], new_links)
+        finally:
+            main.google_sheets.authenticate_gspread = original_authenticate
+            main.google_sheets.open_sheet = original_open_sheet
+            main.listing.fetch_listing_html = original_fetch_listing
+            main.utils.current_yera_and_month = original_current_year_month
+
+    def test_fetch_and_process_news_uses_html_parser_without_llm(self):
+        worksheet = FakeWorksheet(values=[["Links"], ["https://konsolowe.info/2026/03/existing/"]])
+
+        original_authenticate = main.google_sheets.authenticate_gspread
+        original_open_sheet = main.google_sheets.open_sheet
+        original_fetch_listing = main.listing.fetch_listing_html
+        original_current_year_month = main.utils.current_yera_and_month
+        original_run_model = main.groq.run_groq_model
+        try:
+            main.google_sheets.authenticate_gspread = lambda _: object()
+            main.google_sheets.open_sheet = lambda gc, spreadsheet_id, worksheet_title: (
+                object(),
+                worksheet,
+            )
+            main.listing.fetch_listing_html = lambda url: """
+            <a href="https://konsolowe.info/2026/03/existing/">Existing</a>
+            <a href="https://konsolowe.info/2026/03/new/">New</a>
+            <a href="https://konsolowe.info/2026/02/old/">Old</a>
+            <a href="https://konsolowe.info/2026/03/new/">New duplicate</a>
+            """
+            main.utils.current_yera_and_month = lambda: (2026, "03")
+            main.groq.run_groq_model = lambda *args, **kwargs: (_ for _ in ()).throw(
+                AssertionError("LLM nie powinien byc wywolywany dla listingu")
             )
 
             new_links = main.fetch_and_process_news(
@@ -56,35 +87,30 @@ class MilestoneOneTests(unittest.TestCase):
                     "GOOGLE_SHEET_ID": "sheet-id",
                     "GOOGLE_SHEET_WORKSHEET": "Arkusz1",
                     "URL": "https://konsolowe.info/playstation/ps5/",
-                    "GROQ_API": "test",
-                    "LLM_MODEL": "model",
                 }
             )
 
-            self.assertEqual(["https://example.com/new"], new_links)
+            self.assertEqual(["https://konsolowe.info/2026/03/new/"], new_links)
             self.assertEqual(
-                [("https://example.com/new", "RAW")],
+                [("https://konsolowe.info/2026/03/new/", "RAW")],
                 worksheet.appended_links,
             )
         finally:
             main.google_sheets.authenticate_gspread = original_authenticate
             main.google_sheets.open_sheet = original_open_sheet
-            main.jina.jina_scraper = original_jina_scraper
-            main.groq.model_options = original_model_options
             main.groq.run_groq_model = original_run_model
+            main.listing.fetch_listing_html = original_fetch_listing
             main.utils.current_yera_and_month = original_current_year_month
 
     def test_fetch_and_process_news_skips_link_when_append_fails(self):
         worksheet = FakeWorksheet(
             values=[["Links"]],
-            append_fail_for={"https://example.com/fail"},
+            append_fail_for={"https://konsolowe.info/2026/03/fail/"},
         )
 
         original_authenticate = main.google_sheets.authenticate_gspread
         original_open_sheet = main.google_sheets.open_sheet
-        original_jina_scraper = main.jina.jina_scraper
-        original_model_options = main.groq.model_options
-        original_run_model = main.groq.run_groq_model
+        original_fetch_listing = main.listing.fetch_listing_html
         original_current_year_month = main.utils.current_yera_and_month
         try:
             main.google_sheets.authenticate_gspread = lambda _: object()
@@ -92,19 +118,11 @@ class MilestoneOneTests(unittest.TestCase):
                 object(),
                 worksheet,
             )
-            main.jina.jina_scraper = lambda url: "news-body"
+            main.listing.fetch_listing_html = lambda url: """
+            <a href="https://konsolowe.info/2026/03/fail/">Fail</a>
+            <a href="https://konsolowe.info/2026/03/success/">Success</a>
+            """
             main.utils.current_yera_and_month = lambda: (2026, "03")
-            main.groq.model_options = lambda prompt, temperature, max_tokens: {
-                "prompt": prompt,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-            }
-            main.groq.run_groq_model = lambda groq_api_key, model, options: (
-                '{"links": ['
-                '"https://example.com/fail", '
-                '"https://example.com/success"'
-                "]}"
-            )
 
             new_links = main.fetch_and_process_news(
                 {
@@ -112,22 +130,18 @@ class MilestoneOneTests(unittest.TestCase):
                     "GOOGLE_SHEET_ID": "sheet-id",
                     "GOOGLE_SHEET_WORKSHEET": "Arkusz1",
                     "URL": "https://konsolowe.info/playstation/ps5/",
-                    "GROQ_API": "test",
-                    "LLM_MODEL": "model",
                 }
             )
 
-            self.assertEqual(["https://example.com/success"], new_links)
+            self.assertEqual(["https://konsolowe.info/2026/03/success/"], new_links)
             self.assertEqual(
-                [("https://example.com/success", "RAW")],
+                [("https://konsolowe.info/2026/03/success/", "RAW")],
                 worksheet.appended_links,
             )
         finally:
             main.google_sheets.authenticate_gspread = original_authenticate
             main.google_sheets.open_sheet = original_open_sheet
-            main.jina.jina_scraper = original_jina_scraper
-            main.groq.model_options = original_model_options
-            main.groq.run_groq_model = original_run_model
+            main.listing.fetch_listing_html = original_fetch_listing
             main.utils.current_yera_and_month = original_current_year_month
 
 

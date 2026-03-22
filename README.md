@@ -4,7 +4,7 @@ Skrypt do podsumowywania newsow z branzy gier.
 
 ## Jak to dziala
 
-Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista kandydatow do przetworzenia jest nadal wyodrebniana przez model Llama 3.3 70B uruchamiany przez [Groq](https://groq.com), a nowe linki sa zapisywane do arkusza przed dalszym przetwarzaniem. W kolejnym kroku aplikacja pobiera tresc kazdego artykulu, generuje podsumowanie po polsku i wysyla wynik e-mailem.
+Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista kandydatow do przetworzenia jest wyciagana bezposrednio z HTML strony listingu, a nowe linki sa zapisywane do arkusza przed dalszym przetwarzaniem. W kolejnym kroku aplikacja pobiera tresc kazdego artykulu, generuje podsumowanie po polsku i wysyla wynik e-mailem.
 
 ## Wymagania
 
@@ -48,7 +48,7 @@ Projekt uzywa `unittest`. Standardowa komenda:
 uv run python -m unittest discover -s tests -p "test_*.py"
 ```
 
-Testy obejmuja obecnie integracje z Google Sheets w trybie stubowanym dla Milestone 1.0.
+Testy obejmuja obecnie integracje z Google Sheets oraz parser listingu w trybie stubowanym.
 
 ## Przykladowy wynik
 
