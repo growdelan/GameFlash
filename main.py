@@ -4,9 +4,10 @@ import os
 from dotenv import load_dotenv
 
 from llms import groq
-from scrapers import jina, lang_webbaseloader
-from utils import utils
+from scrapers import jina, listing
 from emails import gmail
+from storage import google_sheets
+from utils import utils
 
 
 def load_config():
@@ -15,14 +16,22 @@ def load_config():
     """
     load_dotenv()
     return {
-        "DATABASE_PATH": "news_links.json",
         "URL": "https://konsolowe.info/playstation/ps5/",
         "GROQ_API": os.getenv("GROQ_API_KEY"),
-        "LLM_MODEL": "llama-3.3-70b-versatile",
+        "LLM_MODEL": os.getenv(
+            "LLM_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"
+        ),
         "SMTP_SERVER": os.getenv("SMTP_SERVER"),
         "SENDER_MAIL": os.getenv("SENDER_MAIL"),
         "SENDER_PASS": os.getenv("SENDER_PASS"),
         "RECIPIENTS": os.getenv("RECIPIENTS").split(","),
+        "GOOGLE_SHEET_ID": os.getenv(
+            "GOOGLE_SHEET_ID", "1o0htAcR-8ej4u9GiRCYHxxvFKE7BhCaryB6nqkM-KTI"
+        ),
+        "GOOGLE_SHEET_WORKSHEET": os.getenv("GOOGLE_SHEET_WORKSHEET", "Arkusz1"),
+        "GSPREAD_SERVICE_ACCOUNT_FILE": os.getenv(
+            "GSPREAD_SERVICE_ACCOUNT_FILE", "service_account.json"
+        ),
     }
 
 
@@ -30,26 +39,30 @@ def fetch_and_process_news(config):
     """
     Pobiera newsy z określonego URL i przetwarza je w celu wyodrębnienia nowych linków.
     """
-    utils.initialize_database(config["DATABASE_PATH"])
+    gc = google_sheets.authenticate_gspread(config["GSPREAD_SERVICE_ACCOUNT_FILE"])
+    _, ws = google_sheets.open_sheet(
+        gc=gc,
+        spreadsheet_id=config["GOOGLE_SHEET_ID"],
+        worksheet_title=config["GOOGLE_SHEET_WORKSHEET"],
+    )
+    registered_links = google_sheets.read_registered_links(ws)
 
-    news = jina.jina_scraper(url=config["URL"])
+    news = listing.fetch_listing_html(url=config["URL"])
     year, month = utils.current_yera_and_month()
-    news_model_options = groq.model_options(
-        prompt=groq.news_prompt(year, month, news),
-        temperature=0.2,
-        max_tokens=1600,
-    )
-    news_response = groq.run_groq_model(
-        groq_api_key=config["GROQ_API"],
-        model=config["LLM_MODEL"],
-        options=news_model_options,
-    )
-    print(f"Odpowiedź JSON:\n{news_response}\n")
-
-    parse_news_response = utils.parse_news_response(news_response)
-    new_links = utils.filter_new_links(
-        database_path=config["DATABASE_PATH"], news_links=parse_news_response
-    )
+    parse_news_response = listing.extract_news_links(news, year, month)
+    new_links = []
+    seen_this_run = set()
+    for link in parse_news_response:
+        if link in registered_links or link in seen_this_run:
+            continue
+        try:
+            google_sheets.append_link(ws, link)
+        except Exception as exc:
+            print(f"Nie udalo sie dopisac linku do Google Sheets: {link} ({exc})")
+            continue
+        registered_links.add(link)
+        seen_this_run.add(link)
+        new_links.append(link)
     print(f"Nowe linki: {new_links}")
     return new_links
 
@@ -58,21 +71,24 @@ def summarize_news(config, new_links):
     """
     Podsumowuje nowe linki do newsów i wysyła email z podsumowaniami.
     """
-    utils.update_database(database_path=config["DATABASE_PATH"], new_links=new_links)
-    print("Baza została zaktualizowana")
     news_to_corrected = []
     for news in new_links:
-        read_news = lang_webbaseloader.webbaseloader(url=news)
-        summary_model_options = groq.model_options(
-            prompt=groq.summary_prompt(read_news),
-            temperature=0.8,
-            max_tokens=1024,
-        )
-        summary_news = groq.run_groq_model(
-            groq_api_key=config["GROQ_API"],
-            model=config["LLM_MODEL"],
-            options=summary_model_options,
-        )
+        try:
+            read_news = jina.fetch_article_text(url=news)
+            summary_model_options = groq.model_options(
+                prompt=groq.summary_prompt(read_news),
+                temperature=0.8,
+                max_tokens=1024,
+            )
+            summary_news = groq.run_groq_model(
+                groq_api_key=config["GROQ_API"],
+                model=config["LLM_MODEL"],
+                options=summary_model_options,
+            )
+        except Exception as exc:
+            print(f"Nie udalo sie przetworzyc artykulu {news}: {exc}")
+            continue
+
         news_to_corrected.append(
             f"{summary_news}\n\nLink: {news}\n\n################################"
         )
@@ -85,16 +101,21 @@ def news_proofreading(config, news_to_corrected):
     """Przeprowadza korektę na podsumowanych newsach"""
     news_to_send = []
     for news in news_to_corrected:
-        proofreading_model_options = groq.model_options(
-            prompt=groq.proofreading_prompt(news),
-            temperature=1,
-            max_tokens=1024,
-        )
-        proofreading_news = groq.run_groq_model(
-            groq_api_key=config["GROQ_API"],
-            model=config["LLM_MODEL"],
-            options=proofreading_model_options,
-        )
+        try:
+            proofreading_model_options = groq.model_options(
+                prompt=groq.proofreading_prompt(news),
+                temperature=1,
+                max_tokens=1024,
+            )
+            proofreading_news = groq.run_groq_model(
+                groq_api_key=config["GROQ_API"],
+                model=config["LLM_MODEL"],
+                options=proofreading_model_options,
+            )
+        except Exception as exc:
+            print(f"Nie udalo sie wykonac korekty newsa: {exc}")
+            continue
+
         news_to_send.append(f"{proofreading_news}\n\n################################")
         print(news_to_send)
     print(f"Newsy po korekcie:\n{news_to_send}")
@@ -122,7 +143,13 @@ def main():
     new_links = fetch_and_process_news(config)
     if new_links:
         news_to_corrected = summarize_news(config, new_links)
+        if not news_to_corrected:
+            print("Brak poprawnie przetworzonych newsow do wyslania!")
+            return
         news_to_send = news_proofreading(config, news_to_corrected)
+        if not news_to_send:
+            print("Brak newsow po korekcie do wyslania!")
+            return
         sending_emails(config, news_to_send)
     else:
         print("Brak nowych newsów do wysłania!")

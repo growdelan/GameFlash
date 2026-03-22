@@ -1,17 +1,56 @@
 # GameFlash
-Skrypt do podsumowywania newsów z branży gier
 
-## Jak to działa?
+Skrypt do podsumowywania newsow z branzy gier.
 
-Skrypt wykorzystuje [Jina AI](https://jina.ai) do konwersji podanej strony internetowej na czysty format Markdown. Następnie model LLama3 70B wyodrębnia z niej jedynie linki do artykułów. W kolejnym kroku skrypt pobiera treść z każdego z tych artykułów i generuje ich podsumowania.
+## Jak to dziala
+
+Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista kandydatow do przetworzenia jest wyciagana bezposrednio z HTML strony listingu, a nowe linki sa zapisywane do arkusza przed dalszym przetwarzaniem. Pelna tresc artykulu jest pobierana przez mirror [Jina AI](https://jina.ai), nastepnie model Groq wskazany w `LLM_MODEL` przygotowuje podsumowanie i korekte, a wynik trafia do zbiorczego e-maila.
+
+## Wymagania
+
+- `uv`
+- konto Groq i klucz API
+- konto Google z arkuszem udostepnionym kontu serwisowemu
+- konto SMTP do wysylki e-maili
+
+## Konfiguracja
+
+1. Skopiuj `.env.example` do `.env`.
+2. Uzupelnij wartosci zmiennych:
+   - `GROQ_API_KEY`
+   - `LLM_MODEL`
+   - `GOOGLE_SHEET_ID`
+   - `GOOGLE_SHEET_WORKSHEET`
+   - `GSPREAD_SERVICE_ACCOUNT_FILE`
+   - `SMTP_SERVER`
+   - `SENDER_MAIL`
+   - `SENDER_PASS`
+   - `RECIPIENTS`
 
 ## Uruchomienie
 
-Instalujemy potrzebne paczki `pip3 install -r requirements.txt`
+Synchronizacja srodowiska:
 
-Model LLama3 70B jest używany za pośrednictwem [Groq](https://groq.com), dlatego wymagany jest klucz API, który można uzyskać [tutaj](https://console.groq.com/keys)
+```bash
+uv sync
+```
 
-Aby skrypt działał poprawnie, należy wypełnić zawartość pliku `.env.example` oraz zmienić jego nazwę na `.env`
+Uruchomienie aplikacji:
 
-Przykładowy wynik:
-![alt text](./img/01.png "Screen 01")
+```bash
+uv run main.py
+```
+
+## Testy
+
+Projekt uzywa `unittest`. Standardowa komenda:
+
+```bash
+uv run python -m unittest discover -s tests -p "test_*.py"
+```
+
+Testy obejmuja Google Sheets, parser listingu oraz finalny pipeline przetwarzania linkow w trybie stubowanym.
+
+## Przykladowy wynik
+
+![Przykladowy wynik](/Users/gohan/IT/DevOps/Programowanie/Python/Projekty/GameFlash/img/01.png)

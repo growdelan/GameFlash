@@ -1,0 +1,18 @@
+[project]
+name = "gameflash"
+version = "0.1.0"
+description = "Skrypt do podsumowywania newsow z branzy gier"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "bs4==0.0.2",
+    "google-auth==2.49.1",
+    "groq==1.1.1",
+    "gspread==6.2.1",
+    "httpx==0.28.1",
+    "python-dotenv==1.2.2",
+    "requests==2.32.5",
+]
+
+[tool.uv]
+package = false

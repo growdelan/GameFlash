@@ -3,3 +3,5 @@
 __pycache__
 test.py
 news_links.json
+service_account.json
+.agents/.DS_Store
