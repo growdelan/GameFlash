@@ -5,8 +5,9 @@ from dotenv import load_dotenv
 
 from llms import groq
 from scrapers import jina, lang_webbaseloader
-from utils import utils
 from emails import gmail
+from storage import google_sheets
+from utils import utils
 
 
 def load_config():
@@ -15,7 +16,6 @@ def load_config():
     """
     load_dotenv()
     return {
-        "DATABASE_PATH": "news_links.json",
         "URL": "https://konsolowe.info/playstation/ps5/",
         "GROQ_API": os.getenv("GROQ_API_KEY"),
         "LLM_MODEL": "llama-3.3-70b-versatile",
@@ -23,6 +23,13 @@ def load_config():
         "SENDER_MAIL": os.getenv("SENDER_MAIL"),
         "SENDER_PASS": os.getenv("SENDER_PASS"),
         "RECIPIENTS": os.getenv("RECIPIENTS").split(","),
+        "GOOGLE_SHEET_ID": os.getenv(
+            "GOOGLE_SHEET_ID", "1o0htAcR-8ej4u9GiRCYHxxvFKE7BhCaryB6nqkM-KTI"
+        ),
+        "GOOGLE_SHEET_WORKSHEET": os.getenv("GOOGLE_SHEET_WORKSHEET", "Arkusz1"),
+        "GSPREAD_SERVICE_ACCOUNT_FILE": os.getenv(
+            "GSPREAD_SERVICE_ACCOUNT_FILE", "service_account.json"
+        ),
     }
 
 
@@ -30,7 +37,13 @@ def fetch_and_process_news(config):
     """
     Pobiera newsy z określonego URL i przetwarza je w celu wyodrębnienia nowych linków.
     """
-    utils.initialize_database(config["DATABASE_PATH"])
+    gc = google_sheets.authenticate_gspread(config["GSPREAD_SERVICE_ACCOUNT_FILE"])
+    _, ws = google_sheets.open_sheet(
+        gc=gc,
+        spreadsheet_id=config["GOOGLE_SHEET_ID"],
+        worksheet_title=config["GOOGLE_SHEET_WORKSHEET"],
+    )
+    registered_links = google_sheets.read_registered_links(ws)
 
     news = jina.jina_scraper(url=config["URL"])
     year, month = utils.current_yera_and_month()
@@ -47,9 +60,19 @@ def fetch_and_process_news(config):
     print(f"Odpowiedź JSON:\n{news_response}\n")
 
     parse_news_response = utils.parse_news_response(news_response)
-    new_links = utils.filter_new_links(
-        database_path=config["DATABASE_PATH"], news_links=parse_news_response
-    )
+    new_links = []
+    seen_this_run = set()
+    for link in parse_news_response:
+        if link in registered_links or link in seen_this_run:
+            continue
+        try:
+            google_sheets.append_link(ws, link)
+        except Exception as exc:
+            print(f"Nie udalo sie dopisac linku do Google Sheets: {link} ({exc})")
+            continue
+        registered_links.add(link)
+        seen_this_run.add(link)
+        new_links.append(link)
     print(f"Nowe linki: {new_links}")
     return new_links
 
@@ -58,8 +81,6 @@ def summarize_news(config, new_links):
     """
     Podsumowuje nowe linki do newsów i wysyła email z podsumowaniami.
     """
-    utils.update_database(database_path=config["DATABASE_PATH"], new_links=new_links)
-    print("Baza została zaktualizowana")
     news_to_corrected = []
     for news in new_links:
         read_news = lang_webbaseloader.webbaseloader(url=news)

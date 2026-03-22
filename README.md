@@ -4,12 +4,13 @@ Skrypt do podsumowywania newsow z branzy gier.
 
 ## Jak to dziala
 
-Skrypt wykorzystuje [Jina AI](https://jina.ai) do konwersji strony internetowej na czysty Markdown. Nastepnie model Llama 3.3 70B uruchamiany przez [Groq](https://groq.com) wyodrebnia linki do artykulow. W kolejnym kroku aplikacja pobiera tresc kazdego artykulu, generuje podsumowanie po polsku i wysyla wynik e-mailem.
+Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista kandydatow do przetworzenia jest nadal wyodrebniana przez model Llama 3.3 70B uruchamiany przez [Groq](https://groq.com), a nowe linki sa zapisywane do arkusza przed dalszym przetwarzaniem. W kolejnym kroku aplikacja pobiera tresc kazdego artykulu, generuje podsumowanie po polsku i wysyla wynik e-mailem.
 
 ## Wymagania
 
 - `uv`
 - konto Groq i klucz API
+- konto Google z arkuszem udostepnionym kontu serwisowemu
 - konto SMTP do wysylki e-maili
 
 ## Konfiguracja
@@ -17,6 +18,9 @@ Skrypt wykorzystuje [Jina AI](https://jina.ai) do konwersji strony internetowej 
 1. Skopiuj `.env.example` do `.env`.
 2. Uzupelnij wartosci zmiennych:
    - `GROQ_API_KEY`
+   - `GOOGLE_SHEET_ID`
+   - `GOOGLE_SHEET_WORKSHEET`
+   - `GSPREAD_SERVICE_ACCOUNT_FILE`
    - `SMTP_SERVER`
    - `SENDER_MAIL`
    - `SENDER_PASS`
@@ -44,7 +48,7 @@ Projekt uzywa `unittest`. Standardowa komenda:
 uv run python -m unittest discover -s tests -p "test_*.py"
 ```
 
-Obecnie repo nie zawiera jeszcze katalogu `tests/`.
+Testy obejmuja obecnie integracje z Google Sheets w trybie stubowanym dla Milestone 1.0.
 
 ## Przykladowy wynik
 

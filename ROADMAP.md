@@ -39,7 +39,7 @@ Uwagi:
 
 ---
 
-## Milestone 1.0: Google Sheets jako baza linków (planned)
+## Milestone 1.0: Google Sheets jako baza linków (done)
 
 Cel:
 - zastąpić lokalny plik `news_links.json` arkuszem Google Sheets jako źródłem stanu linków

@@ -35,13 +35,14 @@ Kluczowe use-case'i:
 
 Główny przepływ:
 1. Aplikacja ładuje konfigurację z `.env`.
-2. Tworzy lub odczytuje lokalny plik `news_links.json`.
-3. Pobiera stronę listingu newsów przez Jina AI.
-4. Wysyła treść listingu do modelu Groq, aby uzyskać JSON z linkami.
-5. Odfiltrowuje linki już zapisane lokalnie.
-6. Dla nowych linków pobiera treść artykułów przez `WebBaseLoader`.
-7. Generuje podsumowania i wykonuje ich korektę językową.
-8. Wysyła pojedynczy e-mail ze wszystkimi nowymi podsumowaniami.
+2. Uwierzytelnia się do Google Sheets kontem serwisowym.
+3. Odczytuje istniejące linki z kolumny `Links`.
+4. Pobiera stronę listingu newsów przez Jina AI.
+5. Wysyła treść listingu do modelu Groq, aby uzyskać JSON z linkami.
+6. Dla każdego nowego linku wykonuje append do Google Sheets.
+7. Dla poprawnie dopisanych linków pobiera treść artykułów przez `WebBaseLoader`.
+8. Generuje podsumowania i wykonuje ich korektę językową.
+9. Wysyła pojedynczy e-mail ze wszystkimi nowymi podsumowaniami.
 
 Docelowy przepływ wynikający z PRD `001-google-sheets-link-store-prd.md`:
 1. Aplikacja ładuje konfigurację z `.env`.
@@ -70,20 +71,21 @@ Architektura ma postać prostego skryptu orkiestrującego z kilkoma modułami po
 - `scrapers/jina.py` pobiera listing newsów przez usługę `https://r.jina.ai/`.
 - `scrapers/lang_webbaseloader.py` pobiera treść pojedynczego artykułu.
 - `llms/groq.py` buduje prompty i wykonuje wywołania modelu Groq.
-- `utils/utils.py` zarządza lokalnym plikiem JSON z historią przetworzonych linków.
+- `storage/google_sheets.py` obsługuje odczyt i zapis stanu linków w Google Sheets.
 - `emails/gmail.py` składa i wysyła wiadomość SMTP.
 
 Planowane rozszerzenie komponentów wynikające z PRD `001-google-sheets-link-store-prd.md`:
-- moduł integracji z Google Sheets wzorowany na podejściu z `DramaChecker`,
 - parser HTML do deterministycznej ekstrakcji linków z listingu,
 - usunięcie odpowiedzialności LLM za identyfikację linków wejściowych.
 
 2. Przepływ danych między komponentami
 - Wejście konfiguracyjne pochodzi z `.env` i stałych zaszytych w `main.py`.
+- Konfiguracja obejmuje także `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_WORKSHEET` i `GSPREAD_SERVICE_ACCOUNT_FILE`.
+- Google Sheets jest źródłem prawdy dla listy już zarejestrowanych linków.
 - Listing newsów jest pobierany jako surowa treść tekstowa przez Jina AI.
 - Model Groq zamienia listing na JSON z listą linków.
-- Moduł `utils` porównuje nowe linki z lokalną bazą `news_links.json`.
-- Dla nowych linków pobierana jest pełna treść artykułów.
+- Każdy nowy link jest najpierw zapisywany w Google Sheets.
+- Dla poprawnie zapisanych linków pobierana jest pełna treść artykułów.
 - Model Groq generuje podsumowanie, a następnie osobny prompt wykonuje korektę tekstu.
 - Gotowe sekcje podsumowań są łączone w jeden e-mail wysyłany przez SMTP.
 
@@ -99,11 +101,10 @@ Docelowy przepływ danych wynikający z PRD `001-google-sheets-link-store-prd.md
 3. Granice odpowiedzialności
 - Logika przepływu pozostaje w `main.py`.
 - Integracje z zewnętrznymi usługami są rozdzielone na moduły `scrapers`, `llms` i `emails`.
-- Trwałość danych jest ograniczona do lokalnego pliku JSON.
+- Trwałość danych dla stanu linków jest realizowana przez Google Sheets.
 - Kod nie posiada obecnie oddzielonej warstwy domenowej ani interfejsów abstrakcji.
 
 Po wdrożeniu PRD `001-google-sheets-link-store-prd.md`:
-- Google Sheets przejmie rolę trwałego magazynu stanu linków.
 - LLM przestanie odpowiadać za wykrywanie linków wejściowych i pozostanie wyłącznie komponentem generowania treści.
 - parser HTML będzie odpowiedzialny za wykrycie kandydatów do przetwarzania.
 
@@ -116,13 +117,12 @@ Lista kluczowych komponentów technicznych i ich odpowiedzialności.
 - `uv` do zarządzania środowiskiem i zależnościami.
 - `python-dotenv` do ładowania konfiguracji z `.env`.
 - `requests` do pobrania listingu newsów przez Jina AI.
+- `gspread` i `google-auth` do integracji z Google Sheets przez konto serwisowe.
 - `langchain-community` i `WebBaseLoader` do pobierania treści artykułów.
 - `groq` do komunikacji z modelem LLM.
 - standardowa biblioteka `smtplib` i `ssl` do wysyłki e-maili.
-- standardowa biblioteka `json` do obsługi lokalnej bazy linków.
 
 Planowane rozszerzenia techniczne wynikające z PRD `001-google-sheets-link-store-prd.md`:
-- klient Google Sheets oparty o `gspread` i konto serwisowe,
 - parser HTML oparty o `BeautifulSoup` lub równoważny mechanizm selektorów CSS.
 
 ---
@@ -143,9 +143,9 @@ Każda decyzja powinna zawierać:
 - Uzasadnienie: obecny zakres projektu jest mały i nie wymaga osobnej warstwy CLI, API ani serwera.
 - Konsekwencje: prostsze uruchamianie kosztem słabszej rozszerzalności i mniejszej testowalności przepływu.
 
-- Decyzja: wykrywanie nowych treści opiera się na lokalnym pliku `news_links.json`.
+- Decyzja: wykrywanie nowych treści opierało się na lokalnym pliku `news_links.json`.
 - Uzasadnienie: to najprostszy sposób na deduplikację bez wprowadzania bazy danych.
-- Konsekwencje: rozwiązanie jest lokalne, stanowe i podatne na problemy przy równoległym uruchamianiu.
+- Konsekwencje: decyzja historyczna; została zastąpiona przez integrację z Google Sheets w ramach Milestone 1.0.
 
 - Decyzja: ekstrakcja linków i generowanie treści są delegowane do modelu Groq.
 - Uzasadnienie: zmniejsza to ilość ręcznej logiki parsowania HTML i pozwala szybko uzyskać streszczenia po polsku.
@@ -179,9 +179,9 @@ Każda decyzja powinna zawierać:
 - Uzasadnienie: w repo istnieje już sprawdzony wzorzec integracji z tym mechanizmem.
 - Konsekwencje: uruchomienie będzie wymagało pliku JSON konta serwisowego poza repozytorium i nowych zmiennych środowiskowych.
 
-- Konflikt specyfikacji (dotyczy PRD: `001-google-sheets-link-store-prd.md`): obecna implementacja i wcześniejsze decyzje opisują lokalny plik `news_links.json` oraz ekstrakcję linków przez LLM, podczas gdy nowe PRD definiuje docelowe przejście na Google Sheets i parser HTML.
-- Uzasadnienie: PRD rozszerza projekt o nowy, docelowy mechanizm deduplikacji i pobierania linków, który nie jest jeszcze wdrożony w kodzie.
-- Konsekwencje: do czasu implementacji specyfikacja opisuje jednocześnie stan bieżący i zatwierdzony kierunek zmiany; nie należy usuwać wcześniejszych decyzji, dopóki migracja nie zostanie zrealizowana.
+- Konflikt specyfikacji (dotyczy PRD: `001-google-sheets-link-store-prd.md`): obecna implementacja nadal opisuje ekstrakcję linków przez LLM, podczas gdy docelowy kierunek z PRD przewiduje parser HTML.
+- Uzasadnienie: Milestone 1.0 został wdrożony, ale Milestone 1.1 pozostaje jeszcze przed realizacją.
+- Konsekwencje: po wdrożeniu 1.0 konflikt dotyczy już tylko sposobu ekstrakcji linków, a nie źródła stanu.
 
 ---
 
@@ -190,7 +190,7 @@ Wspólne wymagania jakościowe dla obecnej wersji:
 - aplikację da się przygotować komendą `uv sync`,
 - aplikację da się uruchomić komendą `uv run main.py`,
 - konfiguracja sekretów nie jest przechowywana w repo,
-- nowe linki nie są ponownie wysyłane, jeśli wcześniej trafiły do `news_links.json`,
+- nowe linki nie są ponownie wysyłane, jeśli wcześniej trafiły do Google Sheets,
 - wiadomość e-mail zawiera wszystkie nowe podsumowania z jednego przebiegu,
 - brak nowych zależności bez aktualizacji sekcji `Decyzje techniczne`,
 - kod pozostaje prosty, modułowy i bez ukrytej magii.
@@ -206,8 +206,8 @@ Minimalne kryteria akceptacji dla rozszerzenia z PRD `001-google-sheets-link-sto
 - link obecny już w Google Sheets nie jest pobierany ani podsumowywany ponownie,
 - nowy link jest dopisywany do Google Sheets przed pobraniem treści artykułu,
 - błąd append do Google Sheets blokuje przetwarzanie tego linku w bieżącym przebiegu,
-- po udanym append aplikacja pobiera pełną treść przez `https://r.jina.ai/<link>`,
-- LLM nie jest już używany do ekstrakcji linków z listingu.
+- po udanym append aplikacja kontynuuje dalsze przetwarzanie linku,
+- LLM nie jest jeszcze usunięty z ekstrakcji linków; to pozostaje zakresem Milestone 1.1.
 
 ---
 
@@ -224,10 +224,11 @@ Minimalne kryteria akceptacji dla rozszerzenia z PRD `001-google-sheets-link-sto
 - Aktualny kod odpowiada etapowi wczesnego, działającego workflow end-to-end, ale nadal nie spełnia wszystkich oczekiwań jakościowych z Milestone 0.5, głównie z powodu braku testów i twardo zakodowanej części konfiguracji.
 - PRD `001-google-sheets-link-store-prd.md` wprowadza kolejny przyrost funkcjonalny: migrację deduplikacji linków do Google Sheets i usunięcie LLM z kroku ekstrakcji linków.
 - Realizacja tego PRD wymaga nowych milestone'ów po Milestone 0.5, obejmujących integrację z Google Sheets, migrację przepływu i domknięcie jakości operacyjnej.
+- Milestone 1.0 jest już wdrożony; kolejne prace koncentrują się na usunięciu LLM z ekstrakcji listingu i domknięciu docelowego pipeline'u.
 
 ---
 
 ## Status specyfikacji
 - Data utworzenia: 2026-03-21
-- Ostatnia aktualizacja: 2026-03-21
-- Aktualny zakres obowiązywania: obecny stan aplikacji po migracji operacyjnej na `uv` oraz zatwierdzony kierunek rozszerzenia wynikający z PRD `001-google-sheets-link-store-prd.md`
+- Ostatnia aktualizacja: 2026-03-22
+- Aktualny zakres obowiązywania: stan repo po wdrozeniu Milestone 1.0 oraz zatwierdzony kierunek dalszej realizacji PRD `001-google-sheets-link-store-prd.md`
