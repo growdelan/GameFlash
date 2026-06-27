@@ -32,6 +32,14 @@ Planowane rozszerzenie zakresu wynikające z PRD `002-gaming-email-styles-prd.md
 
 Rozszerzenie z PRD `002-gaming-email-styles-prd.md` zostalo wdrozone.
 
+Planowane rozszerzenie zakresu wynikające z PRD `003-qwen-model-migration-prd.md`:
+- zastapienie domyslnego modelu Groq modelem `qwen/qwen3.6-27b`,
+- zachowanie mozliwosci nadpisania modelu przez `LLM_MODEL`,
+- wykonanie jednorazowej walidacji live nowego modelu przed pelna podmiana,
+- warunkowe dodanie usuwania blokow `<think>...</think>` tylko wtedy, gdy test live wykaze taki problem.
+
+Rozszerzenie z PRD `003-qwen-model-migration-prd.md` zostalo wdrozone.
+
 ---
 
 ## Zakres funkcjonalny (high-level)
@@ -78,6 +86,15 @@ Docelowy przeplyw wynikajacy z PRD `002-gaming-email-styles-prd.md`:
 9. Aplikacja generuje podsumowania po polsku i przygotowuje dwa warianty wiadomosci: `text/plain` oraz `text/html`.
 10. Aplikacja wysyla jeden e-mail multipart, w ktorym HTML stanowi glowna warstwe prezentacji, a `plain text` pozostaje fallbackiem kompatybilnosci.
 
+Docelowy przeplyw wynikajacy z PRD `003-qwen-model-migration-prd.md`:
+1. Przed podmiana modelu aplikacja przechodzi jednorazowa walidacje live modelu `qwen/qwen3.6-27b` na stalej probce artykulu.
+2. Walidacja live nie zapisuje danych do Google Sheets i nie wysyla e-maila.
+3. Wynik walidacji wskazuje, czy model zwraca bloki `<think>...</think>`.
+4. Jesli walidacja live nie wykaze blokow `<think>...</think>`, implementacja ogranicza sie do podmiany domyslnego modelu i dokumentacji.
+5. Jesli walidacja live wykaze bloki `<think>...</think>`, aplikacja usuwa takie bloki po odpowiedzi modelu przed dalszym przetwarzaniem.
+6. Normalny pipeline nadal wykonuje dwa wywolania modelu na poprawnie przetworzony news: podsumowanie i korekte.
+7. Aplikacja nadal wysyla jeden e-mail multipart z gotowymi podsumowaniami.
+
 Czego aplikacja obecnie nie robi:
 - nie waliduje kompleksowo konfiguracji przed startem,
 - nie obsługuje wielu źródeł wejściowych ani wielu modeli,
@@ -104,6 +121,11 @@ Rozszerzenie komponentow wynikajace z PRD `002-gaming-email-styles-prd.md`:
 - `emails/gmail.py` ma skladac wiadomosc multipart z czescia `text/plain` oraz `text/html`,
 - warstwa maili ma zostac rozszerzona o lekki renderer HTML dla stylowanej wiadomosci GameFlash.
 
+Planowane rozszerzenie komponentow wynikajace z PRD `003-qwen-model-migration-prd.md`:
+- `llms/groq.py` pozostaje miejscem integracji z modelem Groq,
+- konfiguracja modelu ma wskazywac domyslnie `qwen/qwen3.6-27b`,
+- ewentualna warstwa usuwania blokow `<think>...</think>` ma zostac dodana tylko wtedy, gdy test live wykaze taka potrzebe.
+
 2. Przepływ danych między komponentami
 - Wejście konfiguracyjne pochodzi z `.env` i stałych zaszytych w `main.py`.
 - Konfiguracja obejmuje także `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_WORKSHEET` i `GSPREAD_SERVICE_ACCOUNT_FILE`.
@@ -129,6 +151,13 @@ Docelowy przeplyw danych wynikajacy z PRD `002-gaming-email-styles-prd.md`:
 - warstwa HTML ma renderowac kazdy news jako osobny blok z tytulem, streszczeniem i CTA do pelnego artykulu,
 - gotowa wiadomosc ma byc wysylana jako multipart przez SMTP bez zaleznosci od zewnetrznych assetow.
 
+Docelowy przeplyw danych wynikajacy z PRD `003-qwen-model-migration-prd.md`:
+- `LLM_MODEL` pozostaje konfigurowalnym wskazaniem modelu,
+- domyslna wartosc modelu ma zostac zmieniona na `qwen/qwen3.6-27b`,
+- test live ma uzyc stalej probki artykulu i nie moze modyfikowac stanu Google Sheets ani wysylac SMTP,
+- walidacja live wykazala, ze surowa odpowiedz Qwen moze zawierac bloki `<think>...</think>`, dlatego odpowiedzi modelu sa zabezpieczone przed przekazaniem reasoning do korekty i warstwy maili,
+- wywolania Qwen uzywaja ukrytego reasoning oraz lokalnej sanitizacji jako zabezpieczenia.
+
 3. Granice odpowiedzialności
 - Logika przepływu pozostaje w `main.py`.
 - Integracje z zewnętrznymi usługami są rozdzielone na moduły `scrapers`, `llms` i `emails`.
@@ -143,6 +172,11 @@ Po wdrozeniu PRD `002-gaming-email-styles-prd.md`:
 - warstwa maili pozostanie odpowiedzialna za dostarczenie wiadomosci przez SMTP,
 - renderer HTML bedzie odpowiadal wyłącznie za prezentacje wiadomosci,
 - fallback `plain text` pozostanie czescia kontraktu wysylki dla kompatybilnosci.
+
+Po wdrozeniu PRD `003-qwen-model-migration-prd.md`:
+- warstwa LLM pozostanie odpowiedzialna wylacznie za podsumowanie i korekte tekstu,
+- liczba wywolan modelu w normalnym pipeline pozostanie bez zmian,
+- test live nowego modelu pozostanie czynnoscia walidacyjna, a nie etapem przetwarzania kazdego artykulu.
 
 ---
 
@@ -166,6 +200,19 @@ Rozszerzenia techniczne wynikajace z PRD `002-gaming-email-styles-prd.md`:
 - wykorzystanie standardowych mechanizmow MIME do zbudowania wiadomosci multipart z `text/plain` i `text/html`,
 - osadzony CSS zgodny z typowymi klientami pocztowymi,
 - brak nowej zaleznosci wykonawczej, o ile prosty renderer HTML da sie zrealizowac w oparciu o standardowa biblioteke lub juz obecne zaleznosci.
+
+Planowane rozszerzenia techniczne wynikajace z PRD `003-qwen-model-migration-prd.md`:
+- zmiana domyslnej wartosci `LLM_MODEL` na `qwen/qwen3.6-27b`,
+- przygotowanie jednorazowej walidacji live modelu bez zapisu do Google Sheets i bez wysylki SMTP,
+- warunkowe dodanie lokalnego usuwania blokow `<think>...</think>`, jesli walidacja live wykaze taka potrzebe,
+- brak nowych zaleznosci wykonawczych, o ile walidacja i ewentualna sanitizacja moga zostac zrealizowane obecnym stosem.
+
+Rozszerzenia techniczne po wdrozeniu PRD `003-qwen-model-migration-prd.md`:
+- domyslna wartosc `LLM_MODEL` zostala zmieniona na `qwen/qwen3.6-27b`,
+- dla modelu `qwen/qwen3.6-27b` wywolanie Groq ukrywa reasoning w odpowiedzi zwracanej do aplikacji,
+- odpowiedzi modelu sa dodatkowo czyszczone z kompletnych blokow `<think>...</think>` jako zabezpieczenie,
+- dla modelu `qwen/qwen3.6-27b` minimalny budzet `max_tokens` zostal podniesiony, aby reasoning nie zuzywal calego limitu przed finalna odpowiedzia,
+- wynik korekty jest zabezpieczony przed utrata linku: jesli model pominie `Link:`, aplikacja dopisuje link z wejscia.
 
 ---
 
@@ -245,6 +292,26 @@ Każda decyzja powinna zawierać:
 - Uzasadnienie: nowy format maila zostal wdrozony bez zmiany logiki pobierania, deduplikacji i podsumowania newsow.
 - Konsekwencje: kolejne zmiany moga rozwijac warstwe prezentacji maila lub kolejne funkcje produktu bez rewizji poprzedniego pipeline'u.
 
+- Decyzja (dotyczy PRD: `003-qwen-model-migration-prd.md`): domyslnym modelem Groq ma zostac `qwen/qwen3.6-27b`, przy zachowaniu mozliwosci nadpisania przez `LLM_MODEL`.
+- Uzasadnienie: dotychczasowy model `meta-llama/llama-4-scout-17b-16e-instruct` ma zostac wycofany, a zachowanie `LLM_MODEL` pozwala awaryjnie zmienic model bez edycji kodu.
+- Konsekwencje: dokumentacja i przykladowa konfiguracja musza wskazywac nowy model jako rekomendowana wartosc.
+
+- Decyzja (dotyczy PRD: `003-qwen-model-migration-prd.md`): przed pelna podmiana modelu ma zostac wykonana jednorazowa walidacja live modelu `qwen/qwen3.6-27b`.
+- Uzasadnienie: nowy model jest modelem rozumujacym i trzeba sprawdzic, czy zachowuje oczekiwany format odpowiedzi dla podsumowania i korekty.
+- Konsekwencje: walidacja live nie moze byc czescia normalnego pipeline'u dla kazdego artykulu, nie moze zapisywac danych do Google Sheets i nie moze wysylac SMTP.
+
+- Decyzja (dotyczy PRD: `003-qwen-model-migration-prd.md`): usuwanie blokow `<think>...</think>` ma zostac dodane tylko wtedy, gdy walidacja live wykaze, ze nowy model zwraca takie bloki.
+- Uzasadnienie: nie nalezy dodawac dodatkowej logiki czyszczenia, jesli model w praktyce zwraca tylko finalna odpowiedz w oczekiwanym formacie.
+- Konsekwencje: implementacja musi udokumentowac wynik walidacji i albo dodac sanitizacje z testami, albo pozostawic pipeline bez dodatkowego czyszczenia.
+
+- Konflikt specyfikacji (dotyczy PRD: `003-qwen-model-migration-prd.md`): brak aktywnego konfliktu na etapie planowania.
+- Uzasadnienie: PRD zmienia domyslny model i wprowadza walidacje ryzyka reasoning, ale nie zmienia zrodla danych, deduplikacji, liczby wywolan modelu ani wysylki maili.
+- Konsekwencje: przyrost moze zostac zaplanowany jako kolejny milestone po Milestone 1.3.
+
+- Konflikt specyfikacji (dotyczy PRD: `003-qwen-model-migration-prd.md`): brak aktywnego konfliktu po wdrozeniu Milestone 1.4.
+- Uzasadnienie: migracja modelu zostala wdrozona bez zmiany liczby wywolan modelu, zrodla danych, deduplikacji i wysylki maili.
+- Konsekwencje: kolejne zmiany moga rozwijac jakosc promptow lub walidacje konfiguracji bez rewizji decyzji o modelu domyslnym.
+
 ---
 
 ## Jakość i kryteria akceptacji
@@ -281,6 +348,15 @@ Minimalne kryteria akceptacji dla rozszerzenia z PRD `002-gaming-email-styles-pr
 - uklad wiadomosci pozostaje czytelny przy wielu newsach i na waskich ekranach,
 - zmiana formatu wiadomosci nie wprowadza regresji w wysylce do wielu odbiorcow.
 
+Minimalne kryteria akceptacji dla rozszerzenia z PRD `003-qwen-model-migration-prd.md`:
+- aplikacja domyslnie uzywa modelu `qwen/qwen3.6-27b`, jesli `LLM_MODEL` nie zostal ustawiony,
+- `LLM_MODEL` nadal pozwala nadpisac domyslny model,
+- jednorazowa walidacja live nowego modelu sprawdza format odpowiedzi, jezyk polski oraz obecnosc albo brak blokow `<think>...</think>`,
+- walidacja live nie zapisuje linkow do Google Sheets i nie wysyla e-maila,
+- jesli walidacja live wykaze bloki `<think>...</think>`, implementacja usuwa je przed dalszym przetwarzaniem i pokrywa testami,
+- jesli walidacja live nie wykaze blokow `<think>...</think>`, pipeline nie otrzymuje dodatkowej sanitizacji,
+- normalny pipeline nadal wykonuje dwa wywolania modelu na poprawnie przetworzony news.
+
 ---
 
 ## Zasady zmian i ewolucji
@@ -297,11 +373,12 @@ Minimalne kryteria akceptacji dla rozszerzenia z PRD `002-gaming-email-styles-pr
 - PRD `001-google-sheets-link-store-prd.md` wprowadza kolejny przyrost funkcjonalny: migrację deduplikacji linków do Google Sheets i usunięcie LLM z kroku ekstrakcji linków.
 - Realizacja tego PRD wymaga nowych milestone'ów po Milestone 0.5, obejmujących integrację z Google Sheets, migrację przepływu i domknięcie jakości operacyjnej.
 - PRD `002-gaming-email-styles-prd.md` wprowadza kolejny przyrost funkcjonalny: przejscie z maila `plain text` na stylowana wiadomosc HTML z fallbackiem `plain text`.
-- Milestone 1.0, 1.1, 1.2 i 1.3 sa wdrozone, a aktualna roadmapa nie zawiera obecnie otwartych milestone'ow funkcjonalnych.
+- PRD `003-qwen-model-migration-prd.md` wprowadza kolejny przyrost funkcjonalny: migracje domyslnego modelu Groq na `qwen/qwen3.6-27b` wraz z walidacja live ryzyka reasoning.
+- Milestone 1.0, 1.1, 1.2, 1.3 i 1.4 sa wdrozone.
 
 ---
 
 ## Status specyfikacji
 - Data utworzenia: 2026-03-21
-- Ostatnia aktualizacja: 2026-03-22
-- Aktualny zakres obowiązywania: stan repo po wdrozeniu Milestone 1.3 i domknieciu PRD `002-gaming-email-styles-prd.md`
+- Ostatnia aktualizacja: 2026-06-27
+- Aktualny zakres obowiązywania: stan repo po wdrozeniu Milestone 1.4 i domknieciu PRD `003-qwen-model-migration-prd.md`
