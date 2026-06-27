@@ -12,6 +12,9 @@ from utils import utils
 
 DEFAULT_LLM_MODEL = "qwen/qwen3.6-27b"
 LINK_RE = re.compile(r"^Link:\s*(\S+)\s*$", re.MULTILINE)
+TITLE_RE = re.compile(r"^Tytu[łl]:\s*(.+)$", re.MULTILINE)
+SUMMARY_RE = re.compile(r"Podsumowanie:\s*(.+?)(?:\n\s*\nLink:|\nLink:|\Z)", re.DOTALL)
+SUMMARY_END_RE = re.compile(r"[.!?…][\"'”’)]*\s*$")
 
 
 def load_config():
@@ -111,6 +114,21 @@ def ensure_link_in_proofreading_result(proofreading_news: str, source_news: str)
     return f"{proofreading_news.rstrip()}\n\nLink: {link_match.group(1)}"
 
 
+def is_complete_proofreading_result(proofreading_news: str) -> bool:
+    """Sprawdza minimalna kompletnosc wyniku korekty przed wysylka."""
+    title_match = TITLE_RE.search(proofreading_news)
+    summary_match = SUMMARY_RE.search(proofreading_news)
+    link_match = LINK_RE.search(proofreading_news)
+    if not title_match or not summary_match or not link_match:
+        return False
+
+    summary = summary_match.group(1).strip()
+    if not summary:
+        return False
+
+    return bool(SUMMARY_END_RE.search(summary))
+
+
 def news_proofreading(config, news_to_corrected):
     """Przeprowadza korektę na podsumowanych newsach"""
     news_to_send = []
@@ -118,8 +136,8 @@ def news_proofreading(config, news_to_corrected):
         try:
             proofreading_model_options = groq.model_options(
                 prompt=groq.proofreading_prompt(news),
-                temperature=1,
-                max_tokens=1024,
+                temperature=0.2,
+                max_tokens=7200,
             )
             proofreading_news = groq.run_groq_model(
                 groq_api_key=config["GROQ_API"],
@@ -129,6 +147,9 @@ def news_proofreading(config, news_to_corrected):
             proofreading_news = ensure_link_in_proofreading_result(
                 proofreading_news, news
             )
+            if not is_complete_proofreading_result(proofreading_news):
+                print("Pominieto niekompletny wynik korekty newsa.")
+                continue
         except Exception as exc:
             print(f"Nie udalo sie wykonac korekty newsa: {exc}")
             continue

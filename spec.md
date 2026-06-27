@@ -40,6 +40,14 @@ Planowane rozszerzenie zakresu wynikające z PRD `003-qwen-model-migration-prd.m
 
 Rozszerzenie z PRD `003-qwen-model-migration-prd.md` zostalo wdrozone.
 
+Planowane rozszerzenie zakresu wynikające z PRD `004-article-content-fetch-resilience-prd.md`:
+- wykrywanie błędnych odpowiedzi Jina mimo statusu `HTTP 200`,
+- dodanie fallbacku pobierania treści artykułów z `konsolowe.info`,
+- blokowanie wywołań LLM dla stron błędów, pustych treści i samych metadanych,
+- walidacja kompletności wyniku korekty przed wysyłką e-maila.
+
+Rozszerzenie z PRD `004-article-content-fetch-resilience-prd.md` zostalo wdrozone.
+
 ---
 
 ## Zakres funkcjonalny (high-level)
@@ -59,9 +67,10 @@ Główny przepływ:
 5. Wyciąga linki z HTML na podstawie wzorca bieżącego roku i miesiąca.
 6. Usuwa duplikaty z bieżącego przebiegu i odrzuca linki obecne już w Google Sheets.
 7. Dla każdego nowego linku wykonuje append do Google Sheets.
-8. Dla poprawnie dopisanych linków pobiera treść artykułów przez `https://r.jina.ai/<link>`.
+8. Dla poprawnie dopisanych linków pobiera treść artykułów przez `https://r.jina.ai/<link>` albo fallback dla `konsolowe.info`, jeśli Jina zwróci błąd lub niewiarygodną treść.
 9. Generuje podsumowania i wykonuje ich korektę językową.
-10. Wysyła pojedynczy e-mail ze wszystkimi nowymi podsumowaniami.
+10. Odrzuca niekompletne wyniki korekty.
+11. Wysyła pojedynczy e-mail ze wszystkimi poprawnie przygotowanymi podsumowaniami.
 
 Docelowy przepływ wynikający z PRD `001-google-sheets-link-store-prd.md`:
 1. Aplikacja ładuje konfigurację z `.env`.
@@ -95,6 +104,15 @@ Docelowy przeplyw wynikajacy z PRD `003-qwen-model-migration-prd.md`:
 6. Normalny pipeline nadal wykonuje dwa wywolania modelu na poprawnie przetworzony news: podsumowanie i korekte.
 7. Aplikacja nadal wysyla jeden e-mail multipart z gotowymi podsumowaniami.
 
+Docelowy przeplyw wynikajacy z PRD `004-article-content-fetch-resilience-prd.md`:
+1. Aplikacja probuje pobrac tresc artykulu przez Jina.
+2. Aplikacja waliduje, czy odpowiedz Jina zawiera realna tresc artykulu, a nie komunikat bledu zrodla.
+3. Jesli Jina zwraca bledna tresc mimo statusu `HTTP 200`, aplikacja uruchamia fallback dla `konsolowe.info`.
+4. Preferowany fallback pobiera tresc przez WordPress REST API, jesli da sie ustalic ID posta.
+5. Alternatywny fallback pobiera bezposredni HTML artykulu i oczyszcza glowna tresc.
+6. Jesli zadna sciezka nie dostarczy realnej tresci, aplikacja pomija link i nie wywoluje LLM.
+7. Wynik korekty jezykowej jest sprawdzany pod katem kompletnosci przed dodaniem do maila.
+
 Czego aplikacja obecnie nie robi:
 - nie waliduje kompleksowo konfiguracji przed startem,
 - nie obsługuje wielu źródeł wejściowych ani wielu modeli,
@@ -109,7 +127,7 @@ Architektura ma postać prostego skryptu orkiestrującego z kilkoma modułami po
 1. Główne komponenty systemu
 - `main.py` odpowiada za sekwencję wykonania całego procesu.
 - `scrapers/listing.py` pobiera i parsuje HTML listingu newsów.
-- `scrapers/jina.py` pobiera treść pojedynczego artykułu przez mirror Jina.
+- `scrapers/jina.py` pobiera treść pojedynczego artykułu przez mirror Jina i fallback dla `konsolowe.info`.
 - `llms/groq.py` buduje prompty i wykonuje wywołania modelu Groq.
 - `storage/google_sheets.py` obsługuje odczyt i zapis stanu linków w Google Sheets.
 - `emails/gmail.py` składa i wysyła wiadomość SMTP.
@@ -126,6 +144,12 @@ Planowane rozszerzenie komponentow wynikajace z PRD `003-qwen-model-migration-pr
 - konfiguracja modelu ma wskazywac domyslnie `qwen/qwen3.6-27b`,
 - ewentualna warstwa usuwania blokow `<think>...</think>` ma zostac dodana tylko wtedy, gdy test live wykaze taka potrzebe.
 
+Planowane rozszerzenie komponentow wynikajace z PRD `004-article-content-fetch-resilience-prd.md`:
+- `scrapers/jina.py` ma walidowac, czy odpowiedz z Jina zawiera realna tresc artykulu,
+- warstwa pobierania tresci ma dostac fallback dla `konsolowe.info` oparty o WordPress REST API lub bezposredni HTML,
+- `main.py` ma pomijac linki, dla ktorych nie udalo sie pobrac wiarygodnej tresci,
+- etap korekty ma weryfikowac kompletnosc wyniku przed przekazaniem newsa do warstwy mailowej.
+
 2. Przepływ danych między komponentami
 - Wejście konfiguracyjne pochodzi z `.env` i stałych zaszytych w `main.py`.
 - Konfiguracja obejmuje także `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_WORKSHEET` i `GSPREAD_SERVICE_ACCOUNT_FILE`.
@@ -133,9 +157,9 @@ Planowane rozszerzenie komponentow wynikajace z PRD `003-qwen-model-migration-pr
 - Listing newsów jest pobierany jako HTML bezpośrednio z URL źródłowego.
 - Parser HTML wyodrębnia linki zgodne ze wzorcem `https://konsolowe.info/<YYYY>/<MM>/`.
 - Każdy nowy link jest najpierw zapisywany w Google Sheets.
-- Dla poprawnie zapisanych linków pobierana jest pełna treść artykułów przez mirror Jina.
+- Dla poprawnie zapisanych linków pobierana jest pełna treść artykułów przez mirror Jina, a przy błędnej odpowiedzi przez fallback `konsolowe.info`.
 - Model Groq generuje podsumowanie, a następnie osobny prompt wykonuje korektę tekstu.
-- Gotowe sekcje podsumowań są łączone w jeden e-mail wysyłany przez SMTP.
+- Kompletne sekcje podsumowań są łączone w jeden e-mail wysyłany przez SMTP.
 
 Docelowy przepływ danych wynikający z PRD `001-google-sheets-link-store-prd.md`:
 - Wejście konfiguracyjne ma obejmować także `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_WORKSHEET` i `GSPREAD_SERVICE_ACCOUNT_FILE`.
@@ -158,6 +182,13 @@ Docelowy przeplyw danych wynikajacy z PRD `003-qwen-model-migration-prd.md`:
 - walidacja live wykazala, ze surowa odpowiedz Qwen moze zawierac bloki `<think>...</think>`, dlatego odpowiedzi modelu sa zabezpieczone przed przekazaniem reasoning do korekty i warstwy maili,
 - wywolania Qwen uzywaja ukrytego reasoning oraz lokalnej sanitizacji jako zabezpieczenia.
 
+Docelowy przeplyw danych wynikajacy z PRD `004-article-content-fetch-resilience-prd.md`:
+- tresc z Jina nie jest automatycznie traktowana jako wiarygodna tylko dlatego, ze odpowiedz miala status `HTTP 200`,
+- komunikaty bledu takie jak `Title: 403 Forbidden` i `Warning: Target URL returned error 403` nie moga trafic do promptu podsumowania,
+- dla artykulow z `konsolowe.info` alternatywna sciezka moze pobrac tresc przez WordPress REST API albo bezposredni HTML,
+- brak realnej tresci artykulu konczy przetwarzanie danego linku przed etapem LLM,
+- niekompletny wynik korekty nie trafia do reprezentacji `plain text` ani `html`.
+
 3. Granice odpowiedzialności
 - Logika przepływu pozostaje w `main.py`.
 - Integracje z zewnętrznymi usługami są rozdzielone na moduły `scrapers`, `llms` i `emails`.
@@ -177,6 +208,11 @@ Po wdrozeniu PRD `003-qwen-model-migration-prd.md`:
 - warstwa LLM pozostanie odpowiedzialna wylacznie za podsumowanie i korekte tekstu,
 - liczba wywolan modelu w normalnym pipeline pozostanie bez zmian,
 - test live nowego modelu pozostanie czynnoscia walidacyjna, a nie etapem przetwarzania kazdego artykulu.
+
+Po wdrozeniu PRD `004-article-content-fetch-resilience-prd.md`:
+- warstwa pobierania tresci odrzuca strony bledow i uruchamia fallback,
+- warstwa LLM nadal odpowiada wylacznie za podsumowanie i korekte realnej tresci artykulu,
+- warstwa maili nie przyjmuje niekompletnych wynikow korekty.
 
 ---
 
@@ -213,6 +249,21 @@ Rozszerzenia techniczne po wdrozeniu PRD `003-qwen-model-migration-prd.md`:
 - odpowiedzi modelu sa dodatkowo czyszczone z kompletnych blokow `<think>...</think>` jako zabezpieczenie,
 - dla modelu `qwen/qwen3.6-27b` minimalny budzet `max_tokens` zostal podniesiony, aby reasoning nie zuzywal calego limitu przed finalna odpowiedzia,
 - wynik korekty jest zabezpieczony przed utrata linku: jesli model pominie `Link:`, aplikacja dopisuje link z wejscia.
+
+Planowane rozszerzenia techniczne wynikajace z PRD `004-article-content-fetch-resilience-prd.md`:
+- wykrywanie blednych odpowiedzi Jina po tresci odpowiedzi, niezaleznie od statusu HTTP zwroconego przez Jina,
+- fallback pobierania tresci przez WordPress REST API dla `konsolowe.info`,
+- fallback pobierania i oczyszczania bezposredniego HTML artykulu, jesli WordPress REST API nie moze zostac uzyte,
+- walidacja minimalnej kompletności wyniku korekty przed wysylka,
+- brak nowych zaleznosci wykonawczych, o ile oczyszczanie HTML da sie zrealizowac obecnym stosem `requests` i `BeautifulSoup`.
+
+Rozszerzenia techniczne po wdrozeniu PRD `004-article-content-fetch-resilience-prd.md`:
+- odpowiedzi Jina zawierajace `Title: 403 Forbidden` albo `Warning: Target URL returned error 403` sa odrzucane przed etapem LLM,
+- bledy HTTP lub sieciowe Jina uruchamiaja fallback dla `konsolowe.info`,
+- fallback probuje pobrac tresc przez WordPress REST API, a potem przez bezposredni HTML artykulu,
+- wynik korekty musi zawierac tytul, podsumowanie, link i domkniete zdanie,
+- korekta Qwen uzywa nizszej temperatury i wyzszego budzetu tokenow, aby ograniczyc ryzyko pustych lub ucietych odpowiedzi,
+- nie dodano nowych zaleznosci wykonawczych.
 
 ---
 
@@ -312,6 +363,26 @@ Każda decyzja powinna zawierać:
 - Uzasadnienie: migracja modelu zostala wdrozona bez zmiany liczby wywolan modelu, zrodla danych, deduplikacji i wysylki maili.
 - Konsekwencje: kolejne zmiany moga rozwijac jakosc promptow lub walidacje konfiguracji bez rewizji decyzji o modelu domyslnym.
 
+- Decyzja (dotyczy PRD: `004-article-content-fetch-resilience-prd.md`): odpowiedz Jina ma byc walidowana po tresci przed przekazaniem jej do LLM.
+- Uzasadnienie: Jina moze zwrocic status `HTTP 200`, mimo ze trescia odpowiedzi jest blad zrodla, na przyklad `403 Forbidden`.
+- Konsekwencje: strony bledow, puste tresci i skrajnie krotkie odpowiedzi nie beda traktowane jako artykul do podsumowania.
+
+- Decyzja (dotyczy PRD: `004-article-content-fetch-resilience-prd.md`): dla `konsolowe.info` fallbackiem pobierania tresci ma byc WordPress REST API, a nastepnie bezposredni HTML artykulu.
+- Uzasadnienie: artykuly zrodla sa publikowane w WordPressie, a publiczny endpoint moze zwrocic pelna tresc nawet wtedy, gdy Jina jest blokowana.
+- Konsekwencje: warstwa pobierania tresci bedzie miec wiecej niz jedna sciezke dla artykulu, ale bez dodawania nowego zrodla newsow.
+
+- Decyzja (dotyczy PRD: `004-article-content-fetch-resilience-prd.md`): jesli nie udalo sie pobrac realnej tresci artykulu, link ma zostac pominiety bez wywolania LLM.
+- Uzasadnienie: brak tresci artykulu jest bezpieczniejszy niz wygenerowanie halucynowanego podsumowania na podstawie tytulu, bledu lub metadanych.
+- Konsekwencje: link dopisany juz do Google Sheets nie bedzie automatycznie usuwany, a dany news moze nie zostac wyslany w biezacym przebiegu.
+
+- Decyzja (dotyczy PRD: `004-article-content-fetch-resilience-prd.md`): wynik korekty jezykowej musi zostac sprawdzony pod katem minimalnej kompletności przed wysylka.
+- Uzasadnienie: model moze zwrocic tekst uciety albo pominac wymagane pola, nawet jesli link zostanie dopisany przez zabezpieczenie.
+- Konsekwencje: niekompletny wynik korekty nie trafi do e-maila HTML ani fallbacku `plain text`.
+
+- Konflikt specyfikacji (dotyczy PRD: `004-article-content-fetch-resilience-prd.md`): PRD doprecyzowuje historyczna decyzje o pobieraniu pelnej tresci artykulow przez Jina.
+- Uzasadnienie: Milestone 1.2 zakladal Jina jako sciezke pobierania tresci, ale zaobserwowano przypadek, w ktorym Jina zwrocila blad zrodla jako tresc odpowiedzi `HTTP 200`.
+- Konsekwencje: Jina pozostaje pierwsza proba pobrania tresci, ale nie bedzie jedynym ani bezwarunkowo zaufanym zrodlem tresci artykulu.
+
 ---
 
 ## Jakość i kryteria akceptacji
@@ -357,6 +428,15 @@ Minimalne kryteria akceptacji dla rozszerzenia z PRD `003-qwen-model-migration-p
 - jesli walidacja live nie wykaze blokow `<think>...</think>`, pipeline nie otrzymuje dodatkowej sanitizacji,
 - normalny pipeline nadal wykonuje dwa wywolania modelu na poprawnie przetworzony news.
 
+Minimalne kryteria akceptacji dla rozszerzenia z PRD `004-article-content-fetch-resilience-prd.md`:
+- odpowiedz Jina zawierajaca `Title: 403 Forbidden` albo `Warning: Target URL returned error 403` jest traktowana jako blad pobrania tresci,
+- tresc bledu Jina nie trafia do promptu podsumowania,
+- po blednej odpowiedzi Jina aplikacja probuje pobrac tresc przez fallback dla `konsolowe.info`,
+- jesli fallback zwroci realna tresc artykulu, aplikacja kontynuuje podsumowanie i korekte,
+- jesli nie uda sie pobrac realnej tresci artykulu, aplikacja pomija link bez wywolania LLM,
+- niekompletny wynik korekty nie jest wysylany w mailu HTML ani `plain text`,
+- testy jednostkowe pokrywaja bledna odpowiedz Jina, fallback i brak realnego IO.
+
 ---
 
 ## Zasady zmian i ewolucji
@@ -374,11 +454,12 @@ Minimalne kryteria akceptacji dla rozszerzenia z PRD `003-qwen-model-migration-p
 - Realizacja tego PRD wymaga nowych milestone'ów po Milestone 0.5, obejmujących integrację z Google Sheets, migrację przepływu i domknięcie jakości operacyjnej.
 - PRD `002-gaming-email-styles-prd.md` wprowadza kolejny przyrost funkcjonalny: przejscie z maila `plain text` na stylowana wiadomosc HTML z fallbackiem `plain text`.
 - PRD `003-qwen-model-migration-prd.md` wprowadza kolejny przyrost funkcjonalny: migracje domyslnego modelu Groq na `qwen/qwen3.6-27b` wraz z walidacja live ryzyka reasoning.
-- Milestone 1.0, 1.1, 1.2, 1.3 i 1.4 sa wdrozone.
+- PRD `004-article-content-fetch-resilience-prd.md` wprowadza kolejny przyrost funkcjonalny: odporne pobieranie tresci artykulow, fallback dla `konsolowe.info` i blokade podsumowan z blednych zrodel.
+- Milestone 1.0, 1.1, 1.2, 1.3, 1.4 i 1.5 sa wdrozone.
 
 ---
 
 ## Status specyfikacji
 - Data utworzenia: 2026-03-21
 - Ostatnia aktualizacja: 2026-06-27
-- Aktualny zakres obowiązywania: stan repo po wdrozeniu Milestone 1.4 i domknieciu PRD `003-qwen-model-migration-prd.md`
+- Aktualny zakres obowiązywania: stan repo po wdrozeniu Milestone 1.5 i domknieciu PRD `004-article-content-fetch-resilience-prd.md`
