@@ -1,6 +1,13 @@
 """Funkcje dotyczące konfigurajic LLM"""
 
+import re
+
 from groq import Groq
+
+QWEN_REASONING_MODEL = "qwen/qwen3.6-27b"
+QWEN_MIN_MAX_TOKENS = 4096
+THINK_BLOCK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
+OPEN_THINK_BLOCK_RE = re.compile(r"<think>.*\Z", re.DOTALL | re.IGNORECASE)
 
 
 def news_prompt(year: str, month: str, context: str) -> str:
@@ -76,6 +83,12 @@ Link: <link to news item>
     return prompt
 
 
+def sanitize_model_response(response: str) -> str:
+    """Usuwa techniczne bloki reasoning z odpowiedzi modelu."""
+    without_complete_blocks = THINK_BLOCK_RE.sub("", response)
+    return OPEN_THINK_BLOCK_RE.sub("", without_complete_blocks).strip()
+
+
 def groq_client(groq_api_key):
     """Inicjalizacja klienta Groq"""
     client = Groq(
@@ -103,19 +116,31 @@ def run_groq_model(
     groq_api_key: str,
     model: str,
     options: dict,
+    sanitize_response: bool = True,
 ):
     """Uruchomienie LLM do wskazanych zadan z trybem JSON lub nie"""
     client = groq_client(groq_api_key)
-    chat_completion = client.chat.completions.create(
-        model=model,
-        messages=[
+    request_options = {
+        "model": model,
+        "messages": [
             {"role": "user", "content": options["prompt"]},
         ],
-        temperature=options.get("temperature", 1),
-        max_tokens=options.get("max_tokens", 1500),
-        stream=False,
-        stop=None,
-    )
+        "temperature": options.get("temperature", 1),
+        "max_tokens": options.get("max_tokens", 1500),
+        "stream": False,
+        "stop": None,
+    }
+    if model == QWEN_REASONING_MODEL:
+        request_options["reasoning_format"] = "hidden"
+        request_options["max_tokens"] = max(
+            request_options["max_tokens"], QWEN_MIN_MAX_TOKENS
+        )
 
-    model_response = chat_completion.choices[0].message.content
+    chat_completion = client.chat.completions.create(**request_options)
+
+    model_response = chat_completion.choices[0].message.content or ""
+    if sanitize_response:
+        model_response = sanitize_model_response(model_response)
+    if not model_response.strip():
+        raise RuntimeError("Model zwrocil pusta odpowiedz.")
     return model_response

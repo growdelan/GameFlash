@@ -1,6 +1,7 @@
 """Głowny plik skryptu"""
 
 import os
+import re
 from dotenv import load_dotenv
 
 from llms import groq
@@ -8,6 +9,9 @@ from scrapers import jina, listing
 from emails import gmail
 from storage import google_sheets
 from utils import utils
+
+DEFAULT_LLM_MODEL = "qwen/qwen3.6-27b"
+LINK_RE = re.compile(r"^Link:\s*(\S+)\s*$", re.MULTILINE)
 
 
 def load_config():
@@ -18,9 +22,7 @@ def load_config():
     return {
         "URL": "https://konsolowe.info/playstation/ps5/",
         "GROQ_API": os.getenv("GROQ_API_KEY"),
-        "LLM_MODEL": os.getenv(
-            "LLM_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"
-        ),
+        "LLM_MODEL": os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL),
         "SMTP_SERVER": os.getenv("SMTP_SERVER"),
         "SENDER_MAIL": os.getenv("SENDER_MAIL"),
         "SENDER_PASS": os.getenv("SENDER_PASS"),
@@ -97,6 +99,18 @@ def summarize_news(config, new_links):
     return news_to_corrected
 
 
+def ensure_link_in_proofreading_result(proofreading_news: str, source_news: str) -> str:
+    """Zachowuje link z wejscia, jesli model pominie go w korekcie."""
+    if LINK_RE.search(proofreading_news):
+        return proofreading_news
+
+    link_match = LINK_RE.search(source_news)
+    if not link_match:
+        return proofreading_news
+
+    return f"{proofreading_news.rstrip()}\n\nLink: {link_match.group(1)}"
+
+
 def news_proofreading(config, news_to_corrected):
     """Przeprowadza korektę na podsumowanych newsach"""
     news_to_send = []
@@ -111,6 +125,9 @@ def news_proofreading(config, news_to_corrected):
                 groq_api_key=config["GROQ_API"],
                 model=config["LLM_MODEL"],
                 options=proofreading_model_options,
+            )
+            proofreading_news = ensure_link_in_proofreading_result(
+                proofreading_news, news
             )
         except Exception as exc:
             print(f"Nie udalo sie wykonac korekty newsa: {exc}")

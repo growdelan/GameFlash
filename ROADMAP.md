@@ -118,3 +118,30 @@ Zakres:
 - przygotowanie maila multipart z warstwa `text/plain` i `text/html`
 - zaprojektowanie nowoczesnej, gamingowej stylistyki wiadomosci
 - dostosowanie testow jednostkowych i smoke testow do nowego formatu e-maila
+
+---
+
+## Milestone 1.4: Migracja modelu Groq na Qwen 3.6 27B (done)
+
+Cel:
+- zastapic domyslny model `meta-llama/llama-4-scout-17b-16e-instruct` modelem `qwen/qwen3.6-27b`
+- potwierdzic w jednorazowej walidacji live zachowanie oczekiwanego formatu odpowiedzi przez nowy model
+- rozstrzygnac na podstawie testu live, czy potrzebne jest usuwanie blokow `<think>...</think>`
+
+Definition of Done:
+- domyslny fallback `LLM_MODEL` wskazuje `qwen/qwen3.6-27b`
+- konfiguracja przez `LLM_MODEL` nadal pozwala nadpisac model
+- jednorazowa walidacja live nowego modelu nie zapisuje danych do Google Sheets i nie wysyla SMTP
+- wynik walidacji live wskazuje, czy odpowiedz zawiera bloki `<think>...</think>`
+- jesli walidacja live wykaze bloki `<think>...</think>`, aplikacja usuwa je przed dalszym przetwarzaniem i ma testy jednostkowe dla tego zachowania
+- jesli walidacja live nie wykaze blokow `<think>...</think>`, pipeline pozostaje bez dodatkowej sanitizacji
+- normalny pipeline nadal wykonuje dwa wywolania modelu na jeden poprawnie przetworzony news
+- dokumentacja operacyjna opisuje nowy model i sposob walidacji
+- testy lokalne przechodza komenda `uv run python -m unittest discover -s tests -p "test_*.py"`
+
+Zakres:
+- podmiana domyslnej wartosci modelu w konfiguracji aplikacji
+- aktualizacja `.env.example`, README i dokumentacji operacyjnej modelu
+- przygotowanie izolowanej walidacji live na stalej probce artykulu
+- warunkowe dodanie usuwania blokow `<think>...</think>` w odpowiedziach modelu
+- dostosowanie testow jednostkowych do wyniku walidacji live
