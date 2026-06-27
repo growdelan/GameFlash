@@ -145,3 +145,29 @@ Zakres:
 - przygotowanie izolowanej walidacji live na stalej probce artykulu
 - warunkowe dodanie usuwania blokow `<think>...</think>` w odpowiedziach modelu
 - dostosowanie testow jednostkowych do wyniku walidacji live
+
+---
+
+## Milestone 1.5: Odporne pobieranie treści artykułów (done)
+
+Cel:
+- zabezpieczyc pipeline przed podsumowywaniem stron bledow zwroconych przez Jina jako tresc odpowiedzi `HTTP 200`
+- dodac fallback pobierania tresci artykulow z `konsolowe.info`
+- zablokowac wysylke niekompletnych wynikow korekty
+
+Definition of Done:
+- odpowiedzi Jina zawierajace `Title: 403 Forbidden` albo `Warning: Target URL returned error 403` sa traktowane jako blad pobrania tresci
+- tresc bledu Jina nie trafia do promptu podsumowania
+- po blednej odpowiedzi Jina aplikacja probuje fallbacku przez WordPress REST API dla `konsolowe.info`
+- jesli WordPress REST API nie moze zostac uzyte, aplikacja moze sprobowac pobrac i oczyscic bezposredni HTML artykulu
+- jesli zadna sciezka nie zwroci realnej tresci artykulu, link jest pomijany bez wywolania LLM
+- niekompletny wynik korekty nie trafia do e-maila HTML ani fallbacku `plain text`
+- testy lokalne przechodza komenda `uv run python -m unittest discover -s tests -p "test_*.py"`
+
+Zakres:
+- walidacja tresci zwracanej przez Jina mimo poprawnego statusu odpowiedzi
+- fallback pobierania tresci przez WordPress REST API dla `konsolowe.info`
+- fallback pobierania i oczyszczania bezposredniego HTML artykulu
+- integracja pomijania linku z obecnym etapem podsumowania
+- walidacja kompletności wyniku korekty przed wysylka
+- testy jednostkowe bez realnego IO dla bledow Jina, fallbacku i blokady LLM
