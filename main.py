@@ -13,7 +13,7 @@ DEFAULT_LISTING_URL = "https://www.ppe.pl/gry"
 DEFAULT_LLM_MODEL = "qwen/qwen3.6-27b"
 DEFAULT_GOOGLE_SHEET_ID = "1N82WxjskvsIyjlfwh8CxlhHJB9LEUMwbAdCI8w0J_yk"
 DEFAULT_GOOGLE_SHEET_WORKSHEET = "Sheet1"
-MAX_ARTICLE_TEXT_CHARS = 10000
+MAX_ARTICLE_TEXT_CHARS = 6500
 ARTICLE_TRUNCATION_NOTICE = (
     "\n\n[Pozostala czesc artykulu zostala pominieta ze wzgledu na limit wejscia modelu.]"
 )
