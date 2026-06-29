@@ -48,6 +48,14 @@ Planowane rozszerzenie zakresu wynikające z PRD `004-article-content-fetch-resi
 
 Rozszerzenie z PRD `004-article-content-fetch-resilience-prd.md` zostalo wdrozone.
 
+Planowane rozszerzenie zakresu wynikające z PRD `005-ppe-source-migration-prd.md`:
+- zmiana aktywnego źródła listingu newsów na `https://www.ppe.pl/gry`,
+- zmiana domyślnego arkusza stanu na `gameflash_sheet_ppe`,
+- dostosowanie parsera HTML do linków PPE w formacie `/news/<id>/<slug>.html`,
+- zachowanie dotychczasowego scenariusza deduplikacji, pobierania treści, podsumowania, korekty i wysyłki e-maila.
+
+Rozszerzenie z PRD `005-ppe-source-migration-prd.md` zostalo wdrozone.
+
 ---
 
 ## Zakres funkcjonalny (high-level)
@@ -113,6 +121,19 @@ Docelowy przeplyw wynikajacy z PRD `004-article-content-fetch-resilience-prd.md`
 6. Jesli zadna sciezka nie dostarczy realnej tresci, aplikacja pomija link i nie wywoluje LLM.
 7. Wynik korekty jezykowej jest sprawdzany pod katem kompletnosci przed dodaniem do maila.
 
+Docelowy przeplyw wynikajacy z PRD `005-ppe-source-migration-prd.md`:
+1. Aplikacja laduje konfiguracje z `.env`.
+2. Aplikacja uwierzytelnia sie do Google Sheets kontem serwisowym.
+3. Aplikacja domyslnie otwiera arkusz `gameflash_sheet_ppe` o ID `1N82WxjskvsIyjlfwh8CxlhHJB9LEUMwbAdCI8w0J_yk` i zakladke `Sheet1`.
+4. Aplikacja odczytuje istniejace linki z kolumny `Links`.
+5. Aplikacja pobiera HTML listingu `https://www.ppe.pl/gry`.
+6. Parser HTML wyciaga tylko linki PPE pasujace do wzorca `/news/<id>/<slug>.html`.
+7. Linki wzgledne sa normalizowane do pelnych URL w domenie `https://www.ppe.pl`.
+8. Aplikacja usuwa duplikaty z biezacego przebiegu i odrzuca linki obecne juz w Google Sheets.
+9. Kazdy nowy link jest najpierw dopisywany do Google Sheets.
+10. Dopiero po udanym append aplikacja pobiera tresc artykulu przez `https://r.jina.ai/<link>`.
+11. Aplikacja zachowuje obecny przeplyw podsumowania, korekty i wysylki e-maila multipart.
+
 Czego aplikacja obecnie nie robi:
 - nie waliduje kompleksowo konfiguracji przed startem,
 - nie obsługuje wielu źródeł wejściowych ani wielu modeli,
@@ -149,6 +170,11 @@ Planowane rozszerzenie komponentow wynikajace z PRD `004-article-content-fetch-r
 - warstwa pobierania tresci ma dostac fallback dla `konsolowe.info` oparty o WordPress REST API lub bezposredni HTML,
 - `main.py` ma pomijac linki, dla ktorych nie udalo sie pobrac wiarygodnej tresci,
 - etap korekty ma weryfikowac kompletnosc wyniku przed przekazaniem newsa do warstwy mailowej.
+
+Planowane rozszerzenie komponentow wynikajace z PRD `005-ppe-source-migration-prd.md`:
+- `main.py` ma domyslnie wskazywac listing PPE oraz nowy arkusz Google Sheets,
+- `scrapers/listing.py` ma wyciagac i normalizowac linki PPE typu `/news/<id>/<slug>.html`,
+- `storage/google_sheets.py` pozostaje bez zmiany kontraktu: zrodlem prawdy nadal jest kolumna `Links`.
 
 2. Przepływ danych między komponentami
 - Wejście konfiguracyjne pochodzi z `.env` i stałych zaszytych w `main.py`.
@@ -189,6 +215,13 @@ Docelowy przeplyw danych wynikajacy z PRD `004-article-content-fetch-resilience-
 - brak realnej tresci artykulu konczy przetwarzanie danego linku przed etapem LLM,
 - niekompletny wynik korekty nie trafia do reprezentacji `plain text` ani `html`.
 
+Docelowy przeplyw danych wynikajacy z PRD `005-ppe-source-migration-prd.md`:
+- domyslne wejscie listingu zmienia sie na `https://www.ppe.pl/gry`,
+- domyslna konfiguracja Google Sheets wskazuje arkusz `1N82WxjskvsIyjlfwh8CxlhHJB9LEUMwbAdCI8w0J_yk` i zakladke `Sheet1`,
+- parser listingu ignoruje linki do bazy gier, rankingow, menu i innych sekcji PPE,
+- parser zwraca tylko pelne URL newsow PPE w formacie `https://www.ppe.pl/news/<id>/<slug>.html`,
+- pobieranie tresci artykulu dla linkow PPE nadal zaczyna sie od mirrora Jina.
+
 3. Granice odpowiedzialności
 - Logika przepływu pozostaje w `main.py`.
 - Integracje z zewnętrznymi usługami są rozdzielone na moduły `scrapers`, `llms` i `emails`.
@@ -213,6 +246,11 @@ Po wdrozeniu PRD `004-article-content-fetch-resilience-prd.md`:
 - warstwa pobierania tresci odrzuca strony bledow i uruchamia fallback,
 - warstwa LLM nadal odpowiada wylacznie za podsumowanie i korekte realnej tresci artykulu,
 - warstwa maili nie przyjmuje niekompletnych wynikow korekty.
+
+Po wdrozeniu PRD `005-ppe-source-migration-prd.md`:
+- aktywnym zrodlem listingu bedzie PPE,
+- warstwa deduplikacji i zapisu linkow nadal bedzie oparta o Google Sheets,
+- dotychczasowy fallback dla `konsolowe.info` pozostanie zachowaniem historycznym, a nie wymaganiem dla nowego zrodla.
 
 ---
 
@@ -263,7 +301,16 @@ Rozszerzenia techniczne po wdrozeniu PRD `004-article-content-fetch-resilience-p
 - fallback probuje pobrac tresc przez WordPress REST API, a potem przez bezposredni HTML artykulu,
 - wynik korekty musi zawierac tytul, podsumowanie, link i domkniete zdanie,
 - korekta Qwen uzywa nizszej temperatury i wyzszego budzetu tokenow, aby ograniczyc ryzyko pustych lub ucietych odpowiedzi,
+- tresc artykulu przekazywana do promptu podsumowania jest ograniczana do ustalonego limitu znakow, z jawnym dopiskiem o pominietej dalszej czesci,
+- klient Groq uzywa timeoutu zadania, zeby pojedyncze wywolanie API nie blokowalo procesu bez konca,
 - nie dodano nowych zaleznosci wykonawczych.
+
+Planowane rozszerzenia techniczne wynikajace z PRD `005-ppe-source-migration-prd.md`:
+- zmiana domyslnego URL listingu na `https://www.ppe.pl/gry`,
+- zmiana domyslnego `GOOGLE_SHEET_ID` na `1N82WxjskvsIyjlfwh8CxlhHJB9LEUMwbAdCI8w0J_yk`,
+- zmiana domyslnego `GOOGLE_SHEET_WORKSHEET` na `Sheet1`,
+- zmiana parsera linkow z miesiecznego wzorca `konsolowe.info` na wzorzec PPE `/news/<id>/<slug>.html`,
+- brak nowych zaleznosci wykonawczych.
 
 ---
 
@@ -383,6 +430,26 @@ Każda decyzja powinna zawierać:
 - Uzasadnienie: Milestone 1.2 zakladal Jina jako sciezke pobierania tresci, ale zaobserwowano przypadek, w ktorym Jina zwrocila blad zrodla jako tresc odpowiedzi `HTTP 200`.
 - Konsekwencje: Jina pozostaje pierwsza proba pobrania tresci, ale nie bedzie jedynym ani bezwarunkowo zaufanym zrodlem tresci artykulu.
 
+- Decyzja (dotyczy PRD: `005-ppe-source-migration-prd.md`): aktywnym zrodlem listingu newsow ma zostac `https://www.ppe.pl/gry`.
+- Uzasadnienie: dotychczasowe zrodlo `konsolowe.info` przestalo dostarczac swieze newsy w oczekiwanym rytmie.
+- Konsekwencje: parser listingu musi zostac dostosowany do struktury PPE, a dokumentacja operacyjna ma wskazywac nowe aktywne zrodlo.
+
+- Decyzja (dotyczy PRD: `005-ppe-source-migration-prd.md`): domyslnym arkuszem stanu ma zostac `gameflash_sheet_ppe` o ID `1N82WxjskvsIyjlfwh8CxlhHJB9LEUMwbAdCI8w0J_yk`, zakladka `Sheet1`.
+- Uzasadnienie: nowy arkusz oddziela stan przetwarzania PPE od historycznego stanu poprzedniego zrodla.
+- Konsekwencje: `GOOGLE_SHEET_ID` i `GOOGLE_SHEET_WORKSHEET` nadal moga nadpisac domyslne wartosci, ale konto serwisowe musi miec dostep do nowego arkusza z kolumna `Links`.
+
+- Decyzja (dotyczy PRD: `005-ppe-source-migration-prd.md`): parser PPE ma zwracac wylacznie linki newsowe pasujace do `/news/<id>/<slug>.html`.
+- Uzasadnienie: strona `https://www.ppe.pl/gry` zawiera rowniez baze gier, rankingi, menu i linki promocyjne, ktore nie sa newsami do maila GameFlash.
+- Konsekwencje: linki `/gry/...`, `/news.html`, rankingi i nawigacja sa ignorowane, a wzgledne linki newsow sa normalizowane do pelnych URL w domenie `https://www.ppe.pl`.
+
+- Decyzja (dotyczy PRD: `005-ppe-source-migration-prd.md`): pierwszy przebieg na pustym arkuszu PPE ma normalnie przetworzyc widoczne newsy.
+- Uzasadnienie: celem migracji jest natychmiastowe przejscie na aktywne zrodlo, bez osobnego trybu inicjalizacji stanu.
+- Konsekwencje: jesli arkusz zawiera tylko naglowek `Links`, wszystkie widoczne, nowe linki `/news/` z listingu PPE moga trafic do pierwszego maila.
+
+- Konflikt specyfikacji (dotyczy PRD: `005-ppe-source-migration-prd.md`): PRD zmienia historyczne zalozenie, ze parser linkow opiera sie na wzorcu `https://konsolowe.info/<YYYY>/<MM>/`.
+- Uzasadnienie: PPE nie koduje roku i miesiaca w linkach newsow, dlatego dotychczasowy selektor miesieczny nie moze obslugiwac nowego aktywnego zrodla.
+- Konsekwencje: po wdrozeniu PRD `005-ppe-source-migration-prd.md` aktywny parser ma byc zgodny z PPE, a wzorzec `konsolowe.info` pozostaje elementem historycznego opisu poprzedniego zrodla.
+
 ---
 
 ## Jakość i kryteria akceptacji
@@ -437,6 +504,17 @@ Minimalne kryteria akceptacji dla rozszerzenia z PRD `004-article-content-fetch-
 - niekompletny wynik korekty nie jest wysylany w mailu HTML ani `plain text`,
 - testy jednostkowe pokrywaja bledna odpowiedz Jina, fallback i brak realnego IO.
 
+Minimalne kryteria akceptacji dla rozszerzenia z PRD `005-ppe-source-migration-prd.md`:
+- aplikacja domyslnie pobiera listing z `https://www.ppe.pl/gry`,
+- aplikacja domyslnie uzywa arkusza `1N82WxjskvsIyjlfwh8CxlhHJB9LEUMwbAdCI8w0J_yk` i zakladki `Sheet1`,
+- parser zwraca pelne URL dla linkow PPE `/news/<id>/<slug>.html`,
+- parser ignoruje linki `/gry/...`, rankingi, menu, `/news.html` i obce domeny,
+- link obecny juz w kolumnie `Links` nie jest przetwarzany ponownie,
+- nowy link PPE jest dopisywany do Google Sheets przed pobraniem tresci artykulu,
+- pierwszy pusty arkusz PPE przetwarza widoczne newsy zamiast tylko inicjalizowac stan,
+- testy jednostkowe pokrywaja parser PPE, limit wejscia artykulu, timeout Groq i nowy przeplyw bez realnego IO,
+- walidacja live potwierdza wysylke zbiorczego maila dla 3 newsow PPE.
+
 ---
 
 ## Zasady zmian i ewolucji
@@ -455,11 +533,12 @@ Minimalne kryteria akceptacji dla rozszerzenia z PRD `004-article-content-fetch-
 - PRD `002-gaming-email-styles-prd.md` wprowadza kolejny przyrost funkcjonalny: przejscie z maila `plain text` na stylowana wiadomosc HTML z fallbackiem `plain text`.
 - PRD `003-qwen-model-migration-prd.md` wprowadza kolejny przyrost funkcjonalny: migracje domyslnego modelu Groq na `qwen/qwen3.6-27b` wraz z walidacja live ryzyka reasoning.
 - PRD `004-article-content-fetch-resilience-prd.md` wprowadza kolejny przyrost funkcjonalny: odporne pobieranie tresci artykulow, fallback dla `konsolowe.info` i blokade podsumowan z blednych zrodel.
-- Milestone 1.0, 1.1, 1.2, 1.3, 1.4 i 1.5 sa wdrozone.
+- PRD `005-ppe-source-migration-prd.md` wprowadza kolejny przyrost funkcjonalny: migracje aktywnego zrodla newsow na PPE i nowy arkusz Google Sheets.
+- Milestone 1.0, 1.1, 1.2, 1.3, 1.4, 1.5 i 1.6 sa wdrozone.
 
 ---
 
 ## Status specyfikacji
 - Data utworzenia: 2026-03-21
-- Ostatnia aktualizacja: 2026-06-27
-- Aktualny zakres obowiązywania: stan repo po wdrozeniu Milestone 1.5 i domknieciu PRD `004-article-content-fetch-resilience-prd.md`
+- Ostatnia aktualizacja: 2026-06-29
+- Aktualny zakres obowiązywania: stan repo po wdrozeniu Milestone 1.6 i domknieciu PRD `005-ppe-source-migration-prd.md`

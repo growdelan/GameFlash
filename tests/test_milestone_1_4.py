@@ -114,6 +114,26 @@ class MilestoneOneFourTests(unittest.TestCase):
         self.assertEqual("hidden", captured_request["reasoning_format"])
         self.assertEqual(groq.QWEN_MIN_MAX_TOKENS, captured_request["max_tokens"])
 
+    def test_groq_client_uses_request_timeout(self):
+        captured_kwargs = {}
+        original_groq_class = groq.Groq
+
+        class FakeGroq:
+            def __init__(self, **kwargs):
+                captured_kwargs.update(kwargs)
+
+        try:
+            groq.Groq = FakeGroq
+            groq.groq_client("test-key")
+        finally:
+            groq.Groq = original_groq_class
+
+        self.assertEqual("test-key", captured_kwargs["api_key"])
+        self.assertEqual(
+            groq.GROQ_REQUEST_TIMEOUT_SECONDS,
+            captured_kwargs["timeout"],
+        )
+
     def test_run_groq_model_raises_clear_error_for_empty_content(self):
         original_client = groq.groq_client
 

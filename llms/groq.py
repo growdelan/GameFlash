@@ -6,6 +6,7 @@ from groq import Groq
 
 QWEN_REASONING_MODEL = "qwen/qwen3.6-27b"
 QWEN_MIN_MAX_TOKENS = 4096
+GROQ_REQUEST_TIMEOUT_SECONDS = 60.0
 THINK_BLOCK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
 OPEN_THINK_BLOCK_RE = re.compile(r"<think>.*\Z", re.DOTALL | re.IGNORECASE)
 
@@ -93,6 +94,7 @@ def groq_client(groq_api_key):
     """Inicjalizacja klienta Groq"""
     client = Groq(
         api_key=groq_api_key,
+        timeout=GROQ_REQUEST_TIMEOUT_SECONDS,
     )
     return client
 

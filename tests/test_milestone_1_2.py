@@ -25,7 +25,6 @@ class PipelineTests(unittest.TestCase):
         self.original_authenticate = main.google_sheets.authenticate_gspread
         self.original_open_sheet = main.google_sheets.open_sheet
         self.original_fetch_listing = main.listing.fetch_listing_html
-        self.original_current_year_month = main.utils.current_yera_and_month
         self.original_fetch_article = main.jina.fetch_article_text
         self.original_run_model = main.groq.run_groq_model
         self.original_send_email = main.gmail.send_email
@@ -35,7 +34,6 @@ class PipelineTests(unittest.TestCase):
         main.google_sheets.authenticate_gspread = self.original_authenticate
         main.google_sheets.open_sheet = self.original_open_sheet
         main.listing.fetch_listing_html = self.original_fetch_listing
-        main.utils.current_yera_and_month = self.original_current_year_month
         main.jina.fetch_article_text = self.original_fetch_article
         main.groq.run_groq_model = self.original_run_model
         main.gmail.send_email = self.original_send_email
@@ -46,8 +44,8 @@ class PipelineTests(unittest.TestCase):
         main.load_config = lambda: {
             "GSPREAD_SERVICE_ACCOUNT_FILE": "service_account.json",
             "GOOGLE_SHEET_ID": "sheet-id",
-            "GOOGLE_SHEET_WORKSHEET": "Arkusz1",
-            "URL": "https://konsolowe.info/playstation/ps5/",
+            "GOOGLE_SHEET_WORKSHEET": "Sheet1",
+            "URL": "https://www.ppe.pl/gry",
             "GROQ_API": "test",
             "LLM_MODEL": "model",
             "SMTP_SERVER": "smtp.gmail.com",
@@ -61,7 +59,6 @@ class PipelineTests(unittest.TestCase):
             worksheet,
         )
         main.listing.fetch_listing_html = lambda url: listing_html
-        main.utils.current_yera_and_month = lambda: (2026, "03")
         main.gmail.send_email = lambda **kwargs: sent_messages.append(kwargs)
 
         return sent_messages
@@ -70,14 +67,14 @@ class PipelineTests(unittest.TestCase):
         worksheet = FakeWorksheet(values=[["Links"]])
         sent_messages = self._configure_common(
             worksheet,
-            '<a href="https://konsolowe.info/2026/03/new-article/">New</a>',
+            '<a href="/news/416201/new-article.html">New</a>',
         )
         main.jina.fetch_article_text = lambda url: "article-body"
 
         def fake_run_model(groq_api_key, model, options):
             prompt = options["prompt"]
             if "proofreading" in prompt:
-                return "Tytul: New\n\nPodsumowanie: gotowe.\n\nLink: https://konsolowe.info/2026/03/new-article/"
+                return "Tytul: New\n\nPodsumowanie: gotowe.\n\nLink: https://www.ppe.pl/news/416201/new-article.html"
             return "Tytul: New\n\nPodsumowanie: szkic."
 
         main.groq.run_groq_model = fake_run_model
@@ -85,7 +82,7 @@ class PipelineTests(unittest.TestCase):
         main.main()
 
         self.assertEqual(
-            [("https://konsolowe.info/2026/03/new-article/", "RAW")],
+            [("https://www.ppe.pl/news/416201/new-article.html", "RAW")],
             worksheet.appended_links,
         )
         self.assertEqual(1, len(sent_messages))
@@ -93,11 +90,11 @@ class PipelineTests(unittest.TestCase):
 
     def test_main_skips_existing_link_without_email(self):
         worksheet = FakeWorksheet(
-            values=[["Links"], ["https://konsolowe.info/2026/03/existing/"]]
+            values=[["Links"], ["https://www.ppe.pl/news/416200/existing.html"]]
         )
         sent_messages = self._configure_common(
             worksheet,
-            '<a href="https://konsolowe.info/2026/03/existing/">Existing</a>',
+            '<a href="/news/416200/existing.html">Existing</a>',
         )
         fetch_calls = []
         main.jina.fetch_article_text = lambda url: fetch_calls.append(url) or "article-body"
@@ -112,11 +109,11 @@ class PipelineTests(unittest.TestCase):
     def test_append_failure_stops_processing_link(self):
         worksheet = FakeWorksheet(
             values=[["Links"]],
-            append_fail_for={"https://konsolowe.info/2026/03/fail/"},
+            append_fail_for={"https://www.ppe.pl/news/416202/fail.html"},
         )
         sent_messages = self._configure_common(
             worksheet,
-            '<a href="https://konsolowe.info/2026/03/fail/">Fail</a>',
+            '<a href="/news/416202/fail.html">Fail</a>',
         )
         fetch_calls = []
         main.jina.fetch_article_text = lambda url: fetch_calls.append(url) or "article-body"
@@ -132,7 +129,7 @@ class PipelineTests(unittest.TestCase):
         worksheet = FakeWorksheet(values=[["Links"]])
         sent_messages = self._configure_common(
             worksheet,
-            '<a href="https://konsolowe.info/2026/03/fetch-fail/">Fail</a>',
+            '<a href="/news/416203/fetch-fail.html">Fail</a>',
         )
         main.jina.fetch_article_text = lambda url: (_ for _ in ()).throw(
             RuntimeError("fetch failed")
@@ -142,7 +139,7 @@ class PipelineTests(unittest.TestCase):
         main.main()
 
         self.assertEqual(
-            [("https://konsolowe.info/2026/03/fetch-fail/", "RAW")],
+            [("https://www.ppe.pl/news/416203/fetch-fail.html", "RAW")],
             worksheet.appended_links,
         )
         self.assertEqual([], sent_messages)
