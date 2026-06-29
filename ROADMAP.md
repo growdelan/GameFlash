@@ -171,3 +171,29 @@ Zakres:
 - integracja pomijania linku z obecnym etapem podsumowania
 - walidacja kompletności wyniku korekty przed wysylka
 - testy jednostkowe bez realnego IO dla bledow Jina, fallbacku i blokady LLM
+
+---
+
+## Milestone 1.6: Migracja zrodla newsow na PPE (done)
+
+Cel:
+- przejsc z listingu `konsolowe.info` na aktywne zrodlo `https://www.ppe.pl/gry`
+- uzyc nowego arkusza `gameflash_sheet_ppe` jako bazy stanu linkow PPE
+- zachowac dotychczasowy scenariusz przetwarzania linkow po zmianie zrodla
+
+Definition of Done:
+- domyslny URL listingu wskazuje `https://www.ppe.pl/gry`
+- domyslny `GOOGLE_SHEET_ID` wskazuje arkusz `1N82WxjskvsIyjlfwh8CxlhHJB9LEUMwbAdCI8w0J_yk`
+- domyslny `GOOGLE_SHEET_WORKSHEET` wskazuje zakladke `Sheet1`
+- parser listingu zwraca tylko pelne URL newsow PPE pasujace do `/news/<id>/<slug>.html`
+- parser ignoruje linki `/gry/...`, rankingi, menu, `/news.html`, promocje i obce domeny
+- pierwszy przebieg na arkuszu zawierajacym tylko naglowek `Links` przetwarza widoczne newsy PPE
+- po udanym append do Google Sheets aplikacja zachowuje obecny przeplyw: Jina, podsumowanie, korekta i e-mail multipart
+- testy lokalne przechodza komenda `uv run python -m unittest discover -s tests -p "test_*.py"`
+
+Zakres:
+- zmiana domyslnej konfiguracji listingu i arkusza Google Sheets
+- dostosowanie parsera HTML do linkow PPE
+- normalizacja wzglednych linkow PPE do pelnych URL
+- aktualizacja testow jednostkowych parsera i pipeline'u pod nowe zrodlo
+- aktualizacja README oraz dokumentacji operacyjnej po implementacji

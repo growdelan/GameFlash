@@ -190,6 +190,27 @@ class MilestoneOneFivePipelineTests(unittest.TestCase):
         self.assertEqual([], result)
         self.assertEqual([], prompts)
 
+    def test_long_article_text_is_trimmed_before_summary_prompt(self):
+        prompts = []
+        long_article = " ".join(["dluga tresc artykulu"] * 2000)
+        main.jina.fetch_article_text = lambda url: long_article
+
+        def fake_run_model(groq_api_key, model, options):
+            prompts.append(options["prompt"])
+            return "Tytul: News\n\nPodsumowanie: Szkic."
+
+        main.groq.run_groq_model = fake_run_model
+
+        result = main.summarize_news(
+            {"GROQ_API": "test", "LLM_MODEL": "model"},
+            [ARTICLE_URL],
+        )
+
+        self.assertEqual(1, len(result))
+        self.assertEqual(1, len(prompts))
+        self.assertLess(len(prompts[0]), len(long_article))
+        self.assertIn("limit wejscia modelu", prompts[0])
+
     def test_incomplete_proofreading_result_is_not_sent(self):
         main.groq.run_groq_model = lambda groq_api_key, model, options: (
             "Tytuł: News\n\n"

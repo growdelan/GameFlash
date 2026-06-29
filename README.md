@@ -4,7 +4,7 @@ Skrypt do podsumowywania newsow z branzy gier.
 
 ## Jak to dziala
 
-Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista kandydatow do przetworzenia jest wyciagana bezposrednio z HTML strony listingu, a nowe linki sa zapisywane do arkusza przed dalszym przetwarzaniem. Pelna tresc artykulu jest pobierana przez mirror [Jina AI](https://jina.ai), a jesli Jina zwroci blad lub niewiarygodna tresc dla `konsolowe.info`, aplikacja uzywa fallbacku przez WordPress REST API albo bezposredni HTML artykulu. Nastepnie model Groq wskazany w `LLM_MODEL` przygotowuje podsumowanie i korekte, a kompletny wynik trafia do zbiorczego e-maila wysylanego jako multipart: stylowany HTML z fallbackiem `plain text`. Domyslnym modelem jest `qwen/qwen3.6-27b`.
+Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista kandydatow do przetworzenia jest wyciagana bezposrednio z HTML listingu `https://www.ppe.pl/gry`; parser bierze tylko linki newsow PPE w formacie `/news/<id>/<slug>.html`. Nowe linki sa zapisywane do arkusza przed dalszym przetwarzaniem. Pelna tresc artykulu jest pobierana przez mirror [Jina AI](https://jina.ai), a jesli Jina zwroci blad lub niewiarygodna tresc dla historycznych linkow z `konsolowe.info`, aplikacja uzywa fallbacku przez WordPress REST API albo bezposredni HTML artykulu. Nastepnie model Groq wskazany w `LLM_MODEL` przygotowuje podsumowanie i korekte, a kompletny wynik trafia do zbiorczego e-maila wysylanego jako multipart: stylowany HTML z fallbackiem `plain text`. Domyslnym modelem jest `qwen/qwen3.6-27b`.
 
 ## Wymagania
 
@@ -19,8 +19,9 @@ Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista k
 2. Uzupelnij wartosci zmiennych:
    - `GROQ_API_KEY`
    - `LLM_MODEL` (domyslnie `qwen/qwen3.6-27b`)
-   - `GOOGLE_SHEET_ID`
-   - `GOOGLE_SHEET_WORKSHEET`
+   - `URL` (domyslnie `https://www.ppe.pl/gry`)
+   - `GOOGLE_SHEET_ID` (domyslnie arkusz `gameflash_sheet_ppe`: `1N82WxjskvsIyjlfwh8CxlhHJB9LEUMwbAdCI8w0J_yk`)
+   - `GOOGLE_SHEET_WORKSHEET` (domyslnie `Sheet1`)
    - `GSPREAD_SERVICE_ACCOUNT_FILE`
    - `SMTP_SERVER`
    - `SENDER_MAIL`
@@ -49,7 +50,7 @@ Projekt uzywa `unittest`. Standardowa komenda:
 uv run python -m unittest discover -s tests -p "test_*.py"
 ```
 
-Testy obejmuja Google Sheets, parser listingu, finalny pipeline przetwarzania linkow w trybie stubowanym, fallback pobierania tresci artykulu oraz renderowanie i wysylke stylowanego e-maila HTML bez realnego SMTP.
+Testy obejmuja Google Sheets, parser listingu PPE, finalny pipeline przetwarzania linkow w trybie stubowanym, fallback pobierania tresci artykulu oraz renderowanie i wysylke stylowanego e-maila HTML bez realnego SMTP.
 
 Opcjonalna walidacja live modelu Qwen, bez zapisu do Google Sheets i bez wysylki SMTP:
 

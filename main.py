@@ -8,9 +8,15 @@ from llms import groq
 from scrapers import jina, listing
 from emails import gmail
 from storage import google_sheets
-from utils import utils
 
+DEFAULT_LISTING_URL = "https://www.ppe.pl/gry"
 DEFAULT_LLM_MODEL = "qwen/qwen3.6-27b"
+DEFAULT_GOOGLE_SHEET_ID = "1N82WxjskvsIyjlfwh8CxlhHJB9LEUMwbAdCI8w0J_yk"
+DEFAULT_GOOGLE_SHEET_WORKSHEET = "Sheet1"
+MAX_ARTICLE_TEXT_CHARS = 10000
+ARTICLE_TRUNCATION_NOTICE = (
+    "\n\n[Pozostala czesc artykulu zostala pominieta ze wzgledu na limit wejscia modelu.]"
+)
 LINK_RE = re.compile(r"^Link:\s*(\S+)\s*$", re.MULTILINE)
 TITLE_RE = re.compile(r"^Tytu[łl]:\s*(.+)$", re.MULTILINE)
 SUMMARY_RE = re.compile(r"Podsumowanie:\s*(.+?)(?:\n\s*\nLink:|\nLink:|\Z)", re.DOTALL)
@@ -23,17 +29,17 @@ def load_config():
     """
     load_dotenv()
     return {
-        "URL": "https://konsolowe.info/playstation/ps5/",
+        "URL": os.getenv("URL", DEFAULT_LISTING_URL),
         "GROQ_API": os.getenv("GROQ_API_KEY"),
         "LLM_MODEL": os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL),
         "SMTP_SERVER": os.getenv("SMTP_SERVER"),
         "SENDER_MAIL": os.getenv("SENDER_MAIL"),
         "SENDER_PASS": os.getenv("SENDER_PASS"),
         "RECIPIENTS": os.getenv("RECIPIENTS").split(","),
-        "GOOGLE_SHEET_ID": os.getenv(
-            "GOOGLE_SHEET_ID", "1o0htAcR-8ej4u9GiRCYHxxvFKE7BhCaryB6nqkM-KTI"
+        "GOOGLE_SHEET_ID": os.getenv("GOOGLE_SHEET_ID", DEFAULT_GOOGLE_SHEET_ID),
+        "GOOGLE_SHEET_WORKSHEET": os.getenv(
+            "GOOGLE_SHEET_WORKSHEET", DEFAULT_GOOGLE_SHEET_WORKSHEET
         ),
-        "GOOGLE_SHEET_WORKSHEET": os.getenv("GOOGLE_SHEET_WORKSHEET", "Arkusz1"),
         "GSPREAD_SERVICE_ACCOUNT_FILE": os.getenv(
             "GSPREAD_SERVICE_ACCOUNT_FILE", "service_account.json"
         ),
@@ -53,8 +59,7 @@ def fetch_and_process_news(config):
     registered_links = google_sheets.read_registered_links(ws)
 
     news = listing.fetch_listing_html(url=config["URL"])
-    year, month = utils.current_yera_and_month()
-    parse_news_response = listing.extract_news_links(news, year, month)
+    parse_news_response = listing.extract_news_links(news, base_url=config["URL"])
     new_links = []
     seen_this_run = set()
     for link in parse_news_response:
@@ -72,6 +77,16 @@ def fetch_and_process_news(config):
     return new_links
 
 
+def prepare_article_text_for_summary(article_text: str) -> str:
+    """Ogranicza wejscie do LLM, zeby nie przekroczyc limitu rozmiaru promptu."""
+    cleaned_text = str(article_text or "").strip()
+    if len(cleaned_text) <= MAX_ARTICLE_TEXT_CHARS:
+        return cleaned_text
+
+    trimmed_text = cleaned_text[:MAX_ARTICLE_TEXT_CHARS].rsplit(" ", 1)[0].rstrip()
+    return f"{trimmed_text}{ARTICLE_TRUNCATION_NOTICE}"
+
+
 def summarize_news(config, new_links):
     """
     Podsumowuje nowe linki do newsów i wysyła email z podsumowaniami.
@@ -79,7 +94,9 @@ def summarize_news(config, new_links):
     news_to_corrected = []
     for news in new_links:
         try:
-            read_news = jina.fetch_article_text(url=news)
+            read_news = prepare_article_text_for_summary(
+                jina.fetch_article_text(url=news)
+            )
             summary_model_options = groq.model_options(
                 prompt=groq.summary_prompt(read_news),
                 temperature=0.8,
