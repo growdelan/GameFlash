@@ -26,7 +26,7 @@ class PipelineTests(unittest.TestCase):
         self.original_open_sheet = main.google_sheets.open_sheet
         self.original_fetch_listing = main.listing.fetch_listing_html
         self.original_fetch_article = main.jina.fetch_article_text
-        self.original_run_model = main.groq.run_groq_model
+        self.original_run_model = main.gemini.run_gemini_model
         self.original_send_email = main.gmail.send_email
 
     def tearDown(self):
@@ -35,7 +35,7 @@ class PipelineTests(unittest.TestCase):
         main.google_sheets.open_sheet = self.original_open_sheet
         main.listing.fetch_listing_html = self.original_fetch_listing
         main.jina.fetch_article_text = self.original_fetch_article
-        main.groq.run_groq_model = self.original_run_model
+        main.gemini.run_gemini_model = self.original_run_model
         main.gmail.send_email = self.original_send_email
 
     def _configure_common(self, worksheet, listing_html):
@@ -46,8 +46,8 @@ class PipelineTests(unittest.TestCase):
             "GOOGLE_SHEET_ID": "sheet-id",
             "GOOGLE_SHEET_WORKSHEET": "Sheet1",
             "URL": "https://www.ppe.pl/gry",
-            "GROQ_API": "test",
-            "LLM_MODEL": "model",
+            "GEMINI_API_KEY": "test",
+            "GEMINI_MODEL": "model",
             "SMTP_SERVER": "smtp.gmail.com",
             "SENDER_MAIL": "sender@example.com",
             "SENDER_PASS": "pass",
@@ -71,13 +71,13 @@ class PipelineTests(unittest.TestCase):
         )
         main.jina.fetch_article_text = lambda url: "article-body"
 
-        def fake_run_model(groq_api_key, model, options):
-            prompt = options["prompt"]
-            if "proofreading" in prompt:
-                return "Tytul: New\n\nPodsumowanie: gotowe.\n\nLink: https://www.ppe.pl/news/416201/new-article.html"
+        model_calls = []
+
+        def fake_run_model(gemini_api_key, model, options):
+            model_calls.append(options["prompt"])
             return "Tytul: New\n\nPodsumowanie: szkic."
 
-        main.groq.run_groq_model = fake_run_model
+        main.gemini.run_gemini_model = fake_run_model
 
         main.main()
 
@@ -86,7 +86,8 @@ class PipelineTests(unittest.TestCase):
             worksheet.appended_links,
         )
         self.assertEqual(1, len(sent_messages))
-        self.assertIn("gotowe", sent_messages[0]["news_to_send"][0])
+        self.assertEqual(1, len(model_calls))
+        self.assertIn("szkic", sent_messages[0]["news_to_send"][0])
 
     def test_main_skips_existing_link_without_email(self):
         worksheet = FakeWorksheet(
@@ -98,7 +99,7 @@ class PipelineTests(unittest.TestCase):
         )
         fetch_calls = []
         main.jina.fetch_article_text = lambda url: fetch_calls.append(url) or "article-body"
-        main.groq.run_groq_model = lambda *args, **kwargs: "unused"
+        main.gemini.run_gemini_model = lambda *args, **kwargs: "unused"
 
         main.main()
 
@@ -117,7 +118,7 @@ class PipelineTests(unittest.TestCase):
         )
         fetch_calls = []
         main.jina.fetch_article_text = lambda url: fetch_calls.append(url) or "article-body"
-        main.groq.run_groq_model = lambda *args, **kwargs: "unused"
+        main.gemini.run_gemini_model = lambda *args, **kwargs: "unused"
 
         main.main()
 
@@ -134,7 +135,7 @@ class PipelineTests(unittest.TestCase):
         main.jina.fetch_article_text = lambda url: (_ for _ in ()).throw(
             RuntimeError("fetch failed")
         )
-        main.groq.run_groq_model = lambda *args, **kwargs: "unused"
+        main.gemini.run_gemini_model = lambda *args, **kwargs: "unused"
 
         main.main()
 
@@ -148,7 +149,7 @@ class PipelineTests(unittest.TestCase):
         worksheet = FakeWorksheet(values=[["Links"]])
         sent_messages = self._configure_common(worksheet, "<html></html>")
         main.jina.fetch_article_text = lambda url: "article-body"
-        main.groq.run_groq_model = lambda *args, **kwargs: "unused"
+        main.gemini.run_gemini_model = lambda *args, **kwargs: "unused"
 
         main.main()
 

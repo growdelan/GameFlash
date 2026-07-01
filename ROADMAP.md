@@ -197,3 +197,47 @@ Zakres:
 - normalizacja wzglednych linkow PPE do pelnych URL
 - aktualizacja testow jednostkowych parsera i pipeline'u pod nowe zrodlo
 - aktualizacja README oraz dokumentacji operacyjnej po implementacji
+
+---
+
+## Milestone 1.7: Migracja LLM na Google Gemini (done)
+
+Cel:
+- usunac zaleznosc od Groq z aktywnego skryptu
+- zastapic wywolania Groq integracja Google Gemini
+- ustawic domyslny model `gemini-3.5-flash`
+
+Definition of Done:
+- aplikacja uzywa `GEMINI_API_KEY` i `GEMINI_MODEL` zamiast `GROQ_API_KEY` i `LLM_MODEL`
+- domyslny model wskazuje `gemini-3.5-flash`
+- zaleznosc `groq` jest usunieta z `pyproject.toml` i `uv.lock`
+- zaleznosc `google-genai` jest dodana i uzasadniona w `spec.md`
+- aktywna warstwa LLM generuje podsumowania przez Gemini
+- testy lokalne przechodza komenda `uv run python -m unittest discover -s tests -p "test_*.py"`
+
+Zakres:
+- nowy modul `llms/gemini.py` z promptami i klientem Gemini
+- aktualizacja `main.py`, `.env.example`, README, STATUS i specyfikacji
+- przeniesienie lokalnego klucza `GEMINI_API_KEY` z repo referencyjnego bez zapisywania sekretu w repo
+- dostosowanie testow jednostkowych do kontraktu Gemini bez realnego IO
+
+---
+
+## Milestone 1.8: Usuniecie osobnej korekty LLM (done)
+
+Cel:
+- uproscic pipeline po migracji na Gemini
+- ograniczyc liczbe wywolan modelu do jednego na poprawnie przetworzony news
+- wysylac kompletne podsumowanie bez osobnej korekty jezykowej
+
+Definition of Done:
+- `main.py` nie wywoluje juz osobnego etapu korekty po podsumowaniu
+- `llms/gemini.py` nie zawiera promptu korekty
+- mail HTML i fallback `plain text` sa budowane bezposrednio z kompletnego podsumowania
+- walidacja ucietego podsumowania nadal blokuje wysylke wadliwego wpisu
+- testy lokalne przechodza komenda `uv run python -m unittest discover -s tests -p "test_*.py"`
+
+Zakres:
+- usuniecie funkcji i testow dotyczacych korekty
+- aktualizacja pipeline'u `main()`
+- aktualizacja README, STATUS, ROADMAP i specyfikacji

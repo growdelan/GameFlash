@@ -56,6 +56,12 @@ Planowane rozszerzenie zakresu wynikające z PRD `005-ppe-source-migration-prd.m
 
 Rozszerzenie z PRD `005-ppe-source-migration-prd.md` zostalo wdrozone.
 
+Zmiana operacyjna po PRD `005-ppe-source-migration-prd.md`:
+- aktywna warstwa LLM zostala przeniesiona z Groq/Qwen na Google Gemini,
+- domyslnym modelem jest `gemini-3.5-flash`,
+- konfiguracja uzywa `GEMINI_API_KEY` i `GEMINI_MODEL`,
+- zaleznosc `groq` zostala usunieta z aktywnego skryptu.
+
 ---
 
 ## Zakres funkcjonalny (high-level)
@@ -64,7 +70,6 @@ Kluczowe use-case'i:
 - wyodrębnienie linków do nowych artykułów z bieżącego miesiąca,
 - pobranie pełnej treści nowych artykułów,
 - wygenerowanie krótkich podsumowań po polsku,
-- korekta językowa podsumowań,
 - wysłanie zbiorczego e-maila do wielu odbiorców.
 
 Główny przepływ:
@@ -76,8 +81,8 @@ Główny przepływ:
 6. Usuwa duplikaty z bieżącego przebiegu i odrzuca linki obecne już w Google Sheets.
 7. Dla każdego nowego linku wykonuje append do Google Sheets.
 8. Dla poprawnie dopisanych linków pobiera treść artykułów przez `https://r.jina.ai/<link>` albo fallback dla `konsolowe.info`, jeśli Jina zwróci błąd lub niewiarygodną treść.
-9. Generuje podsumowania i wykonuje ich korektę językową.
-10. Odrzuca niekompletne wyniki korekty.
+9. Generuje podsumowania po polsku.
+10. Odrzuca ucięte lub niekompletne podsumowania.
 11. Wysyła pojedynczy e-mail ze wszystkimi poprawnie przygotowanymi podsumowaniami.
 
 Docelowy przepływ wynikający z PRD `001-google-sheets-link-store-prd.md`:
@@ -149,7 +154,7 @@ Architektura ma postać prostego skryptu orkiestrującego z kilkoma modułami po
 - `main.py` odpowiada za sekwencję wykonania całego procesu.
 - `scrapers/listing.py` pobiera i parsuje HTML listingu newsów.
 - `scrapers/jina.py` pobiera treść pojedynczego artykułu przez mirror Jina i fallback dla `konsolowe.info`.
-- `llms/groq.py` buduje prompty i wykonuje wywołania modelu Groq.
+- `llms/gemini.py` buduje prompty i wykonuje wywołania modelu Gemini.
 - `storage/google_sheets.py` obsługuje odczyt i zapis stanu linków w Google Sheets.
 - `emails/gmail.py` składa i wysyła wiadomość SMTP.
 
@@ -176,6 +181,16 @@ Planowane rozszerzenie komponentow wynikajace z PRD `005-ppe-source-migration-pr
 - `scrapers/listing.py` ma wyciagac i normalizowac linki PPE typu `/news/<id>/<slug>.html`,
 - `storage/google_sheets.py` pozostaje bez zmiany kontraktu: zrodlem prawdy nadal jest kolumna `Links`.
 
+Rozszerzenie komponentow wynikajace z Milestone 1.7:
+- `llms/gemini.py` zastapil aktywna integracje Groq,
+- `main.py` uzywa `GEMINI_API_KEY` i `GEMINI_MODEL`,
+- prompt podsumowania pozostaje w warstwie LLM.
+
+Rozszerzenie komponentow wynikajace z Milestone 1.8:
+- osobny prompt korekty zostal usuniety z `llms/gemini.py`,
+- `main.py` wysyla kompletne podsumowania bez drugiego wywolania LLM,
+- warstwa maili nadal przyjmuje wpisy w formacie `Tytul`, `Podsumowanie`, `Link`.
+
 2. Przepływ danych między komponentami
 - Wejście konfiguracyjne pochodzi z `.env` i stałych zaszytych w `main.py`.
 - Konfiguracja obejmuje także `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_WORKSHEET` i `GSPREAD_SERVICE_ACCOUNT_FILE`.
@@ -184,7 +199,7 @@ Planowane rozszerzenie komponentow wynikajace z PRD `005-ppe-source-migration-pr
 - Parser HTML wyodrębnia linki zgodne ze wzorcem `https://konsolowe.info/<YYYY>/<MM>/`.
 - Każdy nowy link jest najpierw zapisywany w Google Sheets.
 - Dla poprawnie zapisanych linków pobierana jest pełna treść artykułów przez mirror Jina, a przy błędnej odpowiedzi przez fallback `konsolowe.info`.
-- Model Groq generuje podsumowanie, a następnie osobny prompt wykonuje korektę tekstu.
+- Model Gemini generuje podsumowanie, ktore po walidacji kompletnosci trafia bezposrednio do e-maila.
 - Kompletne sekcje podsumowań są łączone w jeden e-mail wysyłany przez SMTP.
 
 Docelowy przepływ danych wynikający z PRD `001-google-sheets-link-store-prd.md`:
@@ -264,7 +279,7 @@ Lista kluczowych komponentów technicznych i ich odpowiedzialności.
 - `bs4` i `BeautifulSoup` do parsowania linków z listingu.
 - `gspread` i `google-auth` do integracji z Google Sheets przez konto serwisowe.
 - `requests` do pobierania treści artykułów przez mirror Jina.
-- `groq` do komunikacji z modelem LLM.
+- `google-genai` do komunikacji z modelem Gemini.
 - standardowa biblioteka `smtplib` i `ssl` do wysyłki e-maili.
 
 Planowane rozszerzenia techniczne wynikające z PRD `001-google-sheets-link-store-prd.md`:
@@ -312,6 +327,19 @@ Planowane rozszerzenia techniczne wynikajace z PRD `005-ppe-source-migration-prd
 - zmiana parsera linkow z miesiecznego wzorca `konsolowe.info` na wzorzec PPE `/news/<id>/<slug>.html`,
 - brak nowych zaleznosci wykonawczych.
 
+Rozszerzenia techniczne po wdrozeniu Milestone 1.7:
+- domyslna wartosc `GEMINI_MODEL` wskazuje `gemini-3.5-flash`,
+- `GEMINI_API_KEY` jest wymaganym sekretem dla wywolan LLM,
+- klient Gemini uzywa biblioteki `google-genai` i timeoutu zadania,
+- klient Gemini ponawia czasowe bledy limitu `RESOURCE_EXHAUSTED` zgodnie z `retryDelay` zwracanym przez API,
+- etap podsumowania odrzuca uciete odpowiedzi bez domknietego zdania przed wysylka,
+- zaleznosc `groq` zostala usunieta z aktywnych zaleznosci projektu.
+
+Rozszerzenia techniczne po wdrozeniu Milestone 1.8:
+- aktywny pipeline wykonuje jedno wywolanie LLM na poprawnie pobrany news,
+- osobna korekta jezykowa zostala usunieta,
+- kompletne podsumowanie jest laczone z linkiem i przekazywane do maila HTML oraz fallbacku `plain text`.
+
 ---
 
 ## Decyzje techniczne
@@ -345,6 +373,18 @@ Każda decyzja powinna zawierać:
 - Decyzja: wysyłka wyników odbywa się przez SMTP z użyciem danych z `.env`.
 - Uzasadnienie: pozwala zachować prosty model wdrożenia bez dodatkowych usług pośredniczących.
 - Konsekwencje: aplikacja wymaga poprawnej konfiguracji serwera SMTP i bezpiecznego zarządzania hasłem nadawcy.
+
+- Decyzja (dotyczy Milestone 1.7): aktywna warstwa LLM uzywa Google Gemini przez pakiet `google-genai`.
+- Uzasadnienie: użytkownik wskazal migracje z Groq na Gemini oraz model `gemini-3.5-flash`; oficjalny SDK zapewnia bezposredni klient Gemini Developer API z konfiguracja klucza API.
+- Konsekwencje: `GEMINI_API_KEY` staje sie wymaganym sekretem dla generowania podsumowan, a zaleznosc `groq` nie jest juz potrzebna w aktywnym przeplywie.
+
+- Decyzja (dotyczy Milestone 1.7): domyslny model LLM to `gemini-3.5-flash`, z mozliwoscia nadpisania przez `GEMINI_MODEL`.
+- Uzasadnienie: uzytkownik wskazal konkretny model do uzycia, a zmienna srodowiskowa zachowuje dotychczasowy wzorzec konfigurowalnego modelu bez edycji kodu.
+- Konsekwencje: dokumentacja, `.env.example` i testy odnosza sie do `GEMINI_MODEL` zamiast historycznego `LLM_MODEL`.
+
+- Decyzja (dotyczy Milestone 1.8): osobna korekta LLM zostaje usunieta z aktywnego pipeline'u.
+- Uzasadnienie: podsumowanie Gemini jest wystarczajace dla obecnego zastosowania, a drugi etap zwiekszal koszt, czas wykonania i ryzyko limitow API.
+- Konsekwencje: aplikacja wykonuje jedno wywolanie modelu na news; walidacja kompletnosci podsumowania pozostaje zabezpieczeniem przed wysylka ucietych odpowiedzi.
 
 - Decyzja (dotyczy PRD: `001-google-sheets-link-store-prd.md`): źródłem prawdy dla zarejestrowanych linków ma stać się Google Sheets zamiast lokalnego pliku `news_links.json`.
 - Uzasadnienie: odpowiada to dotychczasowemu, sprawdzonemu workflow z `n8n` i upraszcza współdzielenie stanu między uruchomieniami.
@@ -534,11 +574,11 @@ Minimalne kryteria akceptacji dla rozszerzenia z PRD `005-ppe-source-migration-p
 - PRD `003-qwen-model-migration-prd.md` wprowadza kolejny przyrost funkcjonalny: migracje domyslnego modelu Groq na `qwen/qwen3.6-27b` wraz z walidacja live ryzyka reasoning.
 - PRD `004-article-content-fetch-resilience-prd.md` wprowadza kolejny przyrost funkcjonalny: odporne pobieranie tresci artykulow, fallback dla `konsolowe.info` i blokade podsumowan z blednych zrodel.
 - PRD `005-ppe-source-migration-prd.md` wprowadza kolejny przyrost funkcjonalny: migracje aktywnego zrodla newsow na PPE i nowy arkusz Google Sheets.
-- Milestone 1.0, 1.1, 1.2, 1.3, 1.4, 1.5 i 1.6 sa wdrozone.
+- Milestone 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7 i 1.8 sa wdrozone.
 
 ---
 
 ## Status specyfikacji
 - Data utworzenia: 2026-03-21
-- Ostatnia aktualizacja: 2026-06-29
-- Aktualny zakres obowiązywania: stan repo po wdrozeniu Milestone 1.6 i domknieciu PRD `005-ppe-source-migration-prd.md`
+- Ostatnia aktualizacja: 2026-07-01
+- Aktualny zakres obowiązywania: stan repo po wdrozeniu Milestone 1.8 i usunieciu osobnej korekty LLM
