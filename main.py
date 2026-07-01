@@ -4,20 +4,19 @@ import os
 import re
 from dotenv import load_dotenv
 
-from llms import groq
+from llms import gemini
 from scrapers import jina, listing
 from emails import gmail
 from storage import google_sheets
 
 DEFAULT_LISTING_URL = "https://www.ppe.pl/gry"
-DEFAULT_LLM_MODEL = "qwen/qwen3.6-27b"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
 DEFAULT_GOOGLE_SHEET_ID = "1N82WxjskvsIyjlfwh8CxlhHJB9LEUMwbAdCI8w0J_yk"
 DEFAULT_GOOGLE_SHEET_WORKSHEET = "Sheet1"
 MAX_ARTICLE_TEXT_CHARS = 6500
 ARTICLE_TRUNCATION_NOTICE = (
     "\n\n[Pozostala czesc artykulu zostala pominieta ze wzgledu na limit wejscia modelu.]"
 )
-LINK_RE = re.compile(r"^Link:\s*(\S+)\s*$", re.MULTILINE)
 TITLE_RE = re.compile(r"^Tytu[łl]:\s*(.+)$", re.MULTILINE)
 SUMMARY_RE = re.compile(r"Podsumowanie:\s*(.+?)(?:\n\s*\nLink:|\nLink:|\Z)", re.DOTALL)
 SUMMARY_END_RE = re.compile(r"[.!?…][\"'”’)]*\s*$")
@@ -30,8 +29,8 @@ def load_config():
     load_dotenv()
     return {
         "URL": os.getenv("URL", DEFAULT_LISTING_URL),
-        "GROQ_API": os.getenv("GROQ_API_KEY"),
-        "LLM_MODEL": os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL),
+        "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY"),
+        "GEMINI_MODEL": os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL),
         "SMTP_SERVER": os.getenv("SMTP_SERVER"),
         "SENDER_MAIL": os.getenv("SENDER_MAIL"),
         "SENDER_PASS": os.getenv("SENDER_PASS"),
@@ -91,52 +90,42 @@ def summarize_news(config, new_links):
     """
     Podsumowuje nowe linki do newsów i wysyła email z podsumowaniami.
     """
-    news_to_corrected = []
+    news_to_send = []
     for news in new_links:
         try:
             read_news = prepare_article_text_for_summary(
                 jina.fetch_article_text(url=news)
             )
-            summary_model_options = groq.model_options(
-                prompt=groq.summary_prompt(read_news),
+            summary_model_options = gemini.model_options(
+                prompt=gemini.summary_prompt(read_news),
                 temperature=0.8,
-                max_tokens=1024,
+                max_tokens=2048,
             )
-            summary_news = groq.run_groq_model(
-                groq_api_key=config["GROQ_API"],
-                model=config["LLM_MODEL"],
+            summary_news = gemini.run_gemini_model(
+                gemini_api_key=config["GEMINI_API_KEY"],
+                model=config["GEMINI_MODEL"],
                 options=summary_model_options,
             )
+            if not is_complete_summary_result(summary_news):
+                print(f"Pominieto niekompletne podsumowanie artykulu: {news}")
+                continue
         except Exception as exc:
             print(f"Nie udalo sie przetworzyc artykulu {news}: {exc}")
             continue
 
-        news_to_corrected.append(
+        news_to_send.append(
             f"{summary_news}\n\nLink: {news}\n\n################################"
         )
         print(summary_news)
-    print(f"Newsy do podsumowania:\n{news_to_corrected}")
-    return news_to_corrected
+    print(f"Newsy do wyslania:\n{news_to_send}")
+    return news_to_send
 
 
-def ensure_link_in_proofreading_result(proofreading_news: str, source_news: str) -> str:
-    """Zachowuje link z wejscia, jesli model pominie go w korekcie."""
-    if LINK_RE.search(proofreading_news):
-        return proofreading_news
-
-    link_match = LINK_RE.search(source_news)
-    if not link_match:
-        return proofreading_news
-
-    return f"{proofreading_news.rstrip()}\n\nLink: {link_match.group(1)}"
-
-
-def is_complete_proofreading_result(proofreading_news: str) -> bool:
-    """Sprawdza minimalna kompletnosc wyniku korekty przed wysylka."""
-    title_match = TITLE_RE.search(proofreading_news)
-    summary_match = SUMMARY_RE.search(proofreading_news)
-    link_match = LINK_RE.search(proofreading_news)
-    if not title_match or not summary_match or not link_match:
+def is_complete_summary_result(summary_news: str) -> bool:
+    """Sprawdza, czy podsumowanie z modelu nie zostalo uciete."""
+    title_match = TITLE_RE.search(summary_news)
+    summary_match = SUMMARY_RE.search(summary_news)
+    if not title_match or not summary_match:
         return False
 
     summary = summary_match.group(1).strip()
@@ -144,37 +133,6 @@ def is_complete_proofreading_result(proofreading_news: str) -> bool:
         return False
 
     return bool(SUMMARY_END_RE.search(summary))
-
-
-def news_proofreading(config, news_to_corrected):
-    """Przeprowadza korektę na podsumowanych newsach"""
-    news_to_send = []
-    for news in news_to_corrected:
-        try:
-            proofreading_model_options = groq.model_options(
-                prompt=groq.proofreading_prompt(news),
-                temperature=0.2,
-                max_tokens=7200,
-            )
-            proofreading_news = groq.run_groq_model(
-                groq_api_key=config["GROQ_API"],
-                model=config["LLM_MODEL"],
-                options=proofreading_model_options,
-            )
-            proofreading_news = ensure_link_in_proofreading_result(
-                proofreading_news, news
-            )
-            if not is_complete_proofreading_result(proofreading_news):
-                print("Pominieto niekompletny wynik korekty newsa.")
-                continue
-        except Exception as exc:
-            print(f"Nie udalo sie wykonac korekty newsa: {exc}")
-            continue
-
-        news_to_send.append(f"{proofreading_news}\n\n################################")
-        print(news_to_send)
-    print(f"Newsy po korekcie:\n{news_to_send}")
-    return news_to_send
 
 
 def sending_emails(config, news_to_send):
@@ -197,13 +155,9 @@ def main():
     config = load_config()
     new_links = fetch_and_process_news(config)
     if new_links:
-        news_to_corrected = summarize_news(config, new_links)
-        if not news_to_corrected:
-            print("Brak poprawnie przetworzonych newsow do wyslania!")
-            return
-        news_to_send = news_proofreading(config, news_to_corrected)
+        news_to_send = summarize_news(config, new_links)
         if not news_to_send:
-            print("Brak newsow po korekcie do wyslania!")
+            print("Brak poprawnie przetworzonych newsow do wyslania!")
             return
         sending_emails(config, news_to_send)
     else:

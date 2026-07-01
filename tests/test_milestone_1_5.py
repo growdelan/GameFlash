@@ -164,11 +164,11 @@ class MilestoneOneFiveJinaTests(unittest.TestCase):
 class MilestoneOneFivePipelineTests(unittest.TestCase):
     def setUp(self):
         self.original_fetch_article = main.jina.fetch_article_text
-        self.original_run_model = main.groq.run_groq_model
+        self.original_run_model = main.gemini.run_gemini_model
 
     def tearDown(self):
         main.jina.fetch_article_text = self.original_fetch_article
-        main.groq.run_groq_model = self.original_run_model
+        main.gemini.run_gemini_model = self.original_run_model
 
     def test_fetch_error_prevents_403_body_from_reaching_summary_prompt(self):
         prompts = []
@@ -176,14 +176,14 @@ class MilestoneOneFivePipelineTests(unittest.TestCase):
             RuntimeError("Jina zwrocila blad zrodla zamiast tresci.")
         )
 
-        def fake_run_model(groq_api_key, model, options):
+        def fake_run_model(gemini_api_key, model, options):
             prompts.append(options["prompt"])
             return "unused"
 
-        main.groq.run_groq_model = fake_run_model
+        main.gemini.run_gemini_model = fake_run_model
 
         result = main.summarize_news(
-            {"GROQ_API": "test", "LLM_MODEL": "model"},
+            {"GEMINI_API_KEY": "test", "GEMINI_MODEL": "model"},
             [ARTICLE_URL],
         )
 
@@ -195,14 +195,14 @@ class MilestoneOneFivePipelineTests(unittest.TestCase):
         long_article = " ".join(["dluga tresc artykulu"] * 2000)
         main.jina.fetch_article_text = lambda url: long_article
 
-        def fake_run_model(groq_api_key, model, options):
+        def fake_run_model(gemini_api_key, model, options):
             prompts.append(options["prompt"])
             return "Tytul: News\n\nPodsumowanie: Szkic."
 
-        main.groq.run_groq_model = fake_run_model
+        main.gemini.run_gemini_model = fake_run_model
 
         result = main.summarize_news(
-            {"GROQ_API": "test", "LLM_MODEL": "model"},
+            {"GEMINI_API_KEY": "test", "GEMINI_MODEL": "model"},
             [ARTICLE_URL],
         )
 
@@ -211,64 +211,23 @@ class MilestoneOneFivePipelineTests(unittest.TestCase):
         self.assertLess(len(prompts[0]), len(long_article))
         self.assertIn("limit wejscia modelu", prompts[0])
 
-    def test_incomplete_proofreading_result_is_not_sent(self):
-        main.groq.run_groq_model = lambda groq_api_key, model, options: (
-            "Tytuł: News\n\n"
-            "Podsumowanie: Tekst jest uciety w polowie zdania\n\n"
-            f"Link: {ARTICLE_URL}"
-        )
+    def test_incomplete_summary_result_is_not_returned_for_email(self):
+        main.jina.fetch_article_text = lambda url: "pelna tresc artykulu"
+        calls = []
 
-        result = main.news_proofreading(
-            {"GROQ_API": "test", "LLM_MODEL": "model"},
-            [
-                "Tytuł: News\n\n"
-                "Podsumowanie: Szkic.\n\n"
-                f"Link: {ARTICLE_URL}\n\n"
-                "################################"
-            ],
+        def fake_run_model(gemini_api_key, model, options):
+            calls.append(options["prompt"])
+            return "Tytuł: News\n\nPodsumowanie: Uciety tekst w polowie"
+
+        main.gemini.run_gemini_model = fake_run_model
+
+        result = main.summarize_news(
+            {"GEMINI_API_KEY": "test", "GEMINI_MODEL": "model"},
+            [ARTICLE_URL],
         )
 
         self.assertEqual([], result)
-
-    def test_complete_proofreading_result_is_kept(self):
-        main.groq.run_groq_model = lambda groq_api_key, model, options: (
-            "Tytuł: News\n\n"
-            "Podsumowanie: Tekst jest kompletny.\n\n"
-            f"Link: {ARTICLE_URL}"
-        )
-
-        result = main.news_proofreading(
-            {"GROQ_API": "test", "LLM_MODEL": "model"},
-            [
-                "Tytuł: News\n\n"
-                "Podsumowanie: Szkic.\n\n"
-                f"Link: {ARTICLE_URL}\n\n"
-                "################################"
-            ],
-        )
-
-        self.assertEqual(1, len(result))
-        self.assertIn("Tekst jest kompletny.", result[0])
-
-    def test_complete_proofreading_result_allows_closing_quote_after_sentence(self):
-        main.groq.run_groq_model = lambda groq_api_key, model, options: (
-            "Tytuł: News\n\n"
-            "Podsumowanie: Tekst jest kompletny.”\n\n"
-            f"Link: {ARTICLE_URL}"
-        )
-
-        result = main.news_proofreading(
-            {"GROQ_API": "test", "LLM_MODEL": "model"},
-            [
-                "Tytuł: News\n\n"
-                "Podsumowanie: Szkic.\n\n"
-                f"Link: {ARTICLE_URL}\n\n"
-                "################################"
-            ],
-        )
-
-        self.assertEqual(1, len(result))
-        self.assertIn("Tekst jest kompletny.”", result[0])
+        self.assertEqual(1, len(calls))
 
 
 if __name__ == "__main__":
