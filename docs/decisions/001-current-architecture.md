@@ -2,7 +2,7 @@
 
 - Status: obowiązuje
 - Data konsolidacji: 2026-07-26
-- Zakres: stan po Milestone 1.8
+- Zakres: stan po Milestone 1.9
 
 Dokument konsoliduje wyłącznie aktualne decyzje. Wcześniejsze warianty pozostają w historii Git i PRD.
 
@@ -18,11 +18,11 @@ Dokument konsoliduje wyłącznie aktualne decyzje. Wcześniejsze warianty pozost
 - Uzasadnienie: obecny zakres jest mały i nie wymaga serwera, API ani osobnej warstwy CLI.
 - Konsekwencje: uruchamianie pozostaje proste, ale orkiestracja ma ograniczoną rozszerzalność i część konfiguracji jest wczytywana bez wcześniejszej pełnej walidacji.
 
-## Google Sheets jako źródło prawdy
+## Google Sheets jako źródło prawdy i magazyn stanu
 
-- Decyzja: kolumna `Links` w Google Sheets jest źródłem prawdy dla zarejestrowanych artykułów.
-- Uzasadnienie: stan może być współdzielony między uruchomieniami bez utrzymywania lokalnej bazy danych.
-- Konsekwencje: wykonanie zależy od dostępu konta serwisowego; lokalny plik JSON nie uczestniczy w aktywnym przepływie.
+- Decyzja: Google Sheets przechowuje link oraz stan `pending`, `ready`, `sent` albo `failed`, licznik prób, podsumowanie i dane diagnostyczne.
+- Uzasadnienie: trwałe przejścia eliminują utratę artykułu po błędzie i pozwalają ponowić SMTP bez kolejnego wywołania Gemini.
+- Konsekwencje: aplikacja automatycznie dodaje kolumny stanu, ale nadal zależy od dostępu konta serwisowego i zakłada jedną aktywną instancję.
 
 ## Deterministyczny parser listingu
 
@@ -30,11 +30,11 @@ Dokument konsoliduje wyłącznie aktualne decyzje. Wcześniejsze warianty pozost
 - Uzasadnienie: strukturalny kontrakt linku jest jednoznaczny, tańszy i łatwiejszy do testowania niż generowanie odpowiedzi modelu.
 - Konsekwencje: zmiana struktury URL PPE może wymagać aktualizacji parsera i testów.
 
-## Zapis linku przed dalszym przetwarzaniem
+## Trwale przejscia przed kosztownymi efektami
 
-- Decyzja: nowy link jest dopisywany do Google Sheets przed pobraniem artykułu i wywołaniem Gemini.
-- Uzasadnienie: zapobiega to równoległemu lub kolejnemu podjęciu tego samego linku po udanym append.
-- Konsekwencje: błąd pobrania treści, LLM lub SMTP po zapisie nie powoduje automatycznego retry w następnym przebiegu.
+- Decyzja: nowy link jest zapisywany jako `pending`, a kompletne podsumowanie jako `ready` przed SMTP.
+- Uzasadnienie: kolejne uruchomienie moze bezpiecznie wznowic etap przetwarzania albo wysylki na podstawie utrwalonego stanu.
+- Konsekwencje: bledy sa ponawiane maksymalnie trzy razy na etap; SMTP pozostaje at-least-once i rzadki crash przed zapisem `sent` moze zdublowac wiadomosc.
 
 ## Jina jako podstawowa ścieżka treści
 

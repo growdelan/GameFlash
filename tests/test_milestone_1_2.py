@@ -1,22 +1,7 @@
 import unittest
 
 import main
-
-
-class FakeWorksheet:
-    def __init__(self, values=None, append_fail_for=None):
-        self.values = values or [["Links"]]
-        self.appended_links = []
-        self.append_fail_for = set(append_fail_for or [])
-
-    def get_all_values(self):
-        return self.values
-
-    def append_row(self, row, value_input_option="RAW"):
-        link = row[0]
-        if link in self.append_fail_for:
-            raise RuntimeError("append failed")
-        self.appended_links.append((link, value_input_option))
+from tests.fakes import FakeWorksheet
 
 
 class PipelineTests(unittest.TestCase):
@@ -82,8 +67,8 @@ class PipelineTests(unittest.TestCase):
         main.main()
 
         self.assertEqual(
-            [("https://www.ppe.pl/news/416201/new-article.html", "RAW")],
-            worksheet.appended_links,
+            "sent",
+            worksheet.record("https://www.ppe.pl/news/416201/new-article.html")["status"],
         )
         self.assertEqual(1, len(sent_messages))
         self.assertEqual(1, len(model_calls))
@@ -103,7 +88,7 @@ class PipelineTests(unittest.TestCase):
 
         main.main()
 
-        self.assertEqual([], worksheet.appended_links)
+        self.assertEqual([], worksheet.appended_rows)
         self.assertEqual([], sent_messages)
         self.assertEqual([], fetch_calls)
 
@@ -122,7 +107,7 @@ class PipelineTests(unittest.TestCase):
 
         main.main()
 
-        self.assertEqual([], worksheet.appended_links)
+        self.assertEqual([], worksheet.appended_rows)
         self.assertEqual([], sent_messages)
         self.assertEqual([], fetch_calls)
 
@@ -140,8 +125,8 @@ class PipelineTests(unittest.TestCase):
         main.main()
 
         self.assertEqual(
-            [("https://www.ppe.pl/news/416203/fetch-fail.html", "RAW")],
-            worksheet.appended_links,
+            "pending",
+            worksheet.record("https://www.ppe.pl/news/416203/fetch-fail.html")["status"],
         )
         self.assertEqual([], sent_messages)
 
@@ -153,7 +138,7 @@ class PipelineTests(unittest.TestCase):
 
         main.main()
 
-        self.assertEqual([], worksheet.appended_links)
+        self.assertEqual([], worksheet.appended_rows)
         self.assertEqual([], sent_messages)
 
 

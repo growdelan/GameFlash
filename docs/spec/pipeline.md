@@ -12,14 +12,16 @@ uv run main.py
 
 Konfiguracja obejmuje URL listingu, dane Gemini, SMTP, odbiorców oraz dostęp do Google Sheets. Aplikacja nie wykonuje kompleksowej walidacji wszystkich wartości przed startem; błędy mogą ujawnić się dopiero przy użyciu danej integracji.
 
-## Rejestr linków
+## Trwaly stan w Google Sheets
 
 1. `storage.google_sheets.authenticate_gspread()` tworzy klienta na podstawie pliku konta serwisowego.
 2. `open_sheet()` otwiera dokument po ID i zakładkę po nazwie.
-3. `read_registered_links()` wymaga pierwszego wiersza z kolumną `Links` i zwraca zbiór niepustych wartości z tej kolumny.
-4. `append_link()` dopisuje link jako nowy wiersz z `value_input_option="RAW"`.
+3. `ensure_state_schema()` wymaga kolumny `Links` i dopisuje brakujące nagłówki stanu na końcu pierwszego wiersza.
+4. `read_news_records()` zwraca link, status, licznik, podsumowanie, informacje diagnostyczne i numer wiersza.
+5. `append_pending_link()` dopisuje nowy rekord z `Status=pending`, `Attempts=0` i czasem UTC.
+6. `update_news_record()` aktualizuje stan istniejącego rekordu według numeru wiersza.
 
-Brak dokumentu, dostępu albo zakładki jest prezentowany jako błąd domenowy. Pusty arkusz i brak kolumny `Links` również są błędami konfiguracji.
+Brak dokumentu, dostępu albo zakładki jest prezentowany jako błąd domenowy. Pusty arkusz i brak kolumny `Links` również są błędami konfiguracji. Historyczny wiersz bez statusu jest interpretowany jako `sent`, dzięki czemu migracja nagłówka nie wysyła ponownie starych newsów.
 
 W trakcie jednego przebiegu `main.py` utrzymuje dodatkowy zbiór `seen_this_run`. Zapobiega to powtórnemu append tego samego linku, gdy listing zawiera duplikaty.
 
@@ -38,16 +40,18 @@ W trakcie jednego przebiegu `main.py` utrzymuje dodatkowy zbiór `seen_this_run`
 
 Parser nie filtruje linków według daty. Aktywnym kryterium jest typ ścieżki PPE.
 
-## Kolejność deduplikacji i zapisu
+## Kolejność deduplikacji i przejścia stanów
 
 Dla każdego linku z listingu:
 
 1. Link obecny w Google Sheets lub `seen_this_run` jest pomijany.
-2. Aplikacja próbuje dopisać link do arkusza.
+2. Aplikacja próbuje dopisać link jako `pending`.
 3. Błąd append jest logowany i kończy obsługę tego linku.
-4. Po udanym append link trafia do zbiorów stanu i listy przeznaczonej do przetwarzania.
+4. Po udanym append rekord może zostać przetworzony w tym samym przebiegu.
 
-Ta kolejność zapewnia deduplikację między uruchomieniami, ale oznacza brak automatycznego retry, gdy później zawiedzie Jina, Gemini albo SMTP.
+Rekord `pending` po udanym pobraniu i podsumowaniu przechodzi do `ready`. Blad zwieksza `Attempts`; pierwsza i druga porazka pozostawiaja rekord w biezacym etapie, a trzecia ustawia `failed`. `Attempts` jest zerowane po przejsciu z `pending` do `ready`.
+
+Reczna zmiana `failed` na `pending` ponawia pobranie i Gemini. Zmiana na `ready` ponawia wysylke zachowanego `Summary`. Wyczerpany licznik jest wtedy zerowany przy nastepnym podjeciu.
 
 ## Pobieranie treści artykułu
 
@@ -103,14 +107,18 @@ Warstwa mailowa buduje:
 
 Treści są escapowane przed umieszczeniem w HTML. Styl nie wymaga zewnętrznych zasobów. Lista odbiorców pochodzi z rozdzielonej przecinkami zmiennej `RECIPIENTS`.
 
-Jeżeli listing nie zawiera nowych linków albo żaden artykuł nie da kompletnego podsumowania, SMTP nie jest wywoływane.
+Do jednego e-maila trafiaja wszystkie poprawne rekordy `ready`, w tym pozostawione przez wczesniejszy przebieg. Sukces ustawia je na `sent`. Blad SMTP zwieksza licznik etapu wysylki, zachowuje `Summary` i jest ponownie zglaszany procesowi. Kolejna proba nie wywoluje Jina ani Gemini.
+
+Jeżeli listing nie zawiera nowych linków i arkusz nie zawiera poprawnych rekordow `ready`, SMTP nie jest wywoływane. Dostarczanie ma semantyke at-least-once: awaria po przyjeciu wiadomosci przez SMTP, ale przed zapisem `sent`, moze spowodowac duplikat.
 
 ## Obsługa błędów i ryzyka
 
 - Błąd inicjalizacji lub odczytu Google Sheets przerywa przebieg.
 - Błąd append dotyczy tylko jednego linku; kolejne mogą być przetwarzane.
-- Błąd pobrania, Gemini lub walidacji podsumowania dotyczy jednego artykułu.
-- Błąd SMTP nie cofa wcześniej zapisanych linków.
+- Błąd pobrania, Gemini lub walidacji podsumowania dotyczy jednego artykułu i podlega limitowi trzech prób.
+- Błąd SMTP zachowuje gotowe podsumowania i podlega osobnemu limitowi trzech prób.
+- Nieznany niepusty status jest logowany i pomijany.
+- Pojedynczy arkusz nie jest chroniony przed równoległym przetwarzaniem przez wiele instancji.
 - Dostępność pipeline'u zależy od PPE, Google Sheets, Jina, Gemini i SMTP.
 - Standardowe testy nie potwierdzają dostępności usług live.
 
@@ -123,4 +131,3 @@ Podstawowa walidacja repo:
 ```
 
 Walidacje live wymagają jawnego uruchomienia i poprawnych sekretów. Nie należą do podstawowego zestawu testów.
-

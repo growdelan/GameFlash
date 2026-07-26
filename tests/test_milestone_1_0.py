@@ -1,22 +1,7 @@
 import unittest
 
 import main
-
-
-class FakeWorksheet:
-    def __init__(self, values=None, append_fail_for=None):
-        self.values = values or [["Links"]]
-        self.appended_links = []
-        self.append_fail_for = set(append_fail_for or [])
-
-    def get_all_values(self):
-        return self.values
-
-    def append_row(self, row, value_input_option="RAW"):
-        link = row[0]
-        if link in self.append_fail_for:
-            raise RuntimeError("append failed")
-        self.appended_links.append((link, value_input_option))
+from tests.fakes import FakeWorksheet
 
 
 class MilestoneOneTests(unittest.TestCase):
@@ -118,8 +103,8 @@ class MilestoneOneTests(unittest.TestCase):
 
             self.assertEqual(["https://www.ppe.pl/news/416201/new.html"], new_links)
             self.assertEqual(
-                [("https://www.ppe.pl/news/416201/new.html", "RAW")],
-                worksheet.appended_links,
+                "pending",
+                worksheet.record("https://www.ppe.pl/news/416201/new.html")["status"],
             )
         finally:
             main.google_sheets.authenticate_gspread = original_authenticate
@@ -155,10 +140,7 @@ class MilestoneOneTests(unittest.TestCase):
             self.assertEqual(
                 ["https://www.ppe.pl/news/416204/from-config.html"], new_links
             )
-            self.assertEqual(
-                [("https://www.ppe.pl/news/416204/from-config.html", "RAW")],
-                worksheet.appended_links,
-            )
+            self.assertEqual(1, len(worksheet.appended_rows))
         finally:
             main.google_sheets.authenticate_gspread = original_authenticate
             main.google_sheets.open_sheet = original_open_sheet
@@ -194,10 +176,7 @@ class MilestoneOneTests(unittest.TestCase):
             )
 
             self.assertEqual(["https://www.ppe.pl/news/416203/success.html"], new_links)
-            self.assertEqual(
-                [("https://www.ppe.pl/news/416203/success.html", "RAW")],
-                worksheet.appended_links,
-            )
+            self.assertEqual(1, len(worksheet.appended_rows))
         finally:
             main.google_sheets.authenticate_gspread = original_authenticate
             main.google_sheets.open_sheet = original_open_sheet

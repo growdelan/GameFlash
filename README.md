@@ -4,7 +4,7 @@ Skrypt do podsumowywania newsow z branzy gier.
 
 ## Jak to dziala
 
-Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista kandydatow do przetworzenia jest wyciagana bezposrednio z HTML listingu `https://www.ppe.pl/gry`; parser bierze tylko linki newsow PPE w formacie `/news/<id>/<slug>.html`. Nowe linki sa zapisywane do arkusza przed dalszym przetwarzaniem. Pelna tresc artykulu jest pobierana przez mirror [Jina AI](https://jina.ai), a jesli Jina zwroci blad lub niewiarygodna tresc dla historycznych linkow z `konsolowe.info`, aplikacja uzywa fallbacku przez WordPress REST API albo bezposredni HTML artykulu. Nastepnie model Gemini wskazany w `GEMINI_MODEL` przygotowuje podsumowanie, a kompletny wynik trafia do zbiorczego e-maila wysylanego jako multipart: stylowany HTML z fallbackiem `plain text`. Domyslnym modelem jest `gemini-3.5-flash`.
+Skrypt wykorzystuje Google Sheets jako trwaly magazyn linkow i stanu ich przetwarzania. Lista kandydatow jest wyciagana bezposrednio z HTML listingu `https://www.ppe.pl/gry`; parser bierze tylko linki newsow PPE w formacie `/news/<id>/<slug>.html`. Nowe linki sa zapisywane jako `pending`. Pelna tresc jest pobierana przez mirror [Jina AI](https://jina.ai), a dla historycznych linkow z `konsolowe.info` dostepny jest fallback WordPress REST API lub bezposredni HTML. Gemini przygotowuje podsumowanie, ktore przed wysylka jest utrwalane jako `ready`. Sukces SMTP ustawia `sent`, a bledy pobierania, Gemini i wysylki sa ponawiane maksymalnie trzy razy na etap. Retry SMTP korzysta z zapisanego podsumowania. Domyslnym modelem jest `gemini-3.5-flash`.
 
 ## Wymagania
 
@@ -28,6 +28,10 @@ Skrypt wykorzystuje Google Sheets jako baze stanu przetworzonych linkow. Lista k
    - `SENDER_PASS`
    - `RECIPIENTS`
 
+Arkusz musi zawierac kolumne `Links`. Przy pierwszym uruchomieniu aplikacja automatycznie dopisze brakujace kolumny `Status`, `Attempts`, `Summary`, `LastError`, `DiscoveredAt` i `UpdatedAt`. Istniejace wiersze bez statusu sa traktowane jak `sent` i nie zostana wyslane ponownie.
+
+Rekord po trzech bledach aktualnego etapu otrzymuje status `failed`. Aby ponowic pelne przetwarzanie, zmien jego status recznie na `pending`. Aby ponowic tylko wysylke zachowanego podsumowania, zmien status na `ready`.
+
 ## Uruchomienie
 
 Synchronizacja srodowiska:
@@ -50,7 +54,7 @@ Projekt uzywa `unittest`. Standardowa komenda:
 uv run python -m unittest discover -s tests -p "test_*.py"
 ```
 
-Testy obejmuja Google Sheets, parser listingu PPE, finalny pipeline przetwarzania linkow w trybie stubowanym, fallback pobierania tresci artykulu oraz renderowanie i wysylke stylowanego e-maila HTML bez realnego SMTP.
+Testy obejmuja migracje schematu i przejscia stanu Google Sheets, retry przetwarzania i SMTP, parser listingu PPE, fallback pobierania tresci oraz renderowanie i wysylke stylowanego e-maila HTML bez realnego SMTP.
 
 Klient Gemini ponawia czasowe bledy limitu `RESOURCE_EXHAUSTED` zgodnie z `retryDelay` zwracanym przez API. Pipeline odrzuca ucięte podsumowania przed wysylka maila.
 

@@ -241,3 +241,27 @@ Zakres:
 - usuniecie funkcji i testow dotyczacych korekty
 - aktualizacja pipeline'u `main()`
 - aktualizacja README, STATUS, ROADMAP i specyfikacji
+
+---
+
+## Milestone 1.9: Trwaly stan przetwarzania i retry (done)
+
+Cel:
+- automatycznie ponawiac bledy pobierania, Gemini i SMTP
+- zachowac gotowe podsumowanie po bledzie wysylki
+- wyeliminowac utrate artykulu po zapisaniu linku w Google Sheets
+
+Definition of Done:
+- arkusz jest automatycznie rozszerzany o kolumny stanu bez naruszania istniejacych danych
+- historyczne wiersze bez statusu nie sa przetwarzane ponownie
+- rekordy przechodza przez stany `pending`, `ready`, `sent` i `failed`
+- trzeci kolejny blad aktualnego etapu ustawia `failed`
+- retry SMTP wykorzystuje zapisane podsumowanie bez ponownego wywolania Gemini
+- reczna zmiana `failed` na `pending` albo `ready` reaktywuje rekord
+- testy lokalne przechodza komenda `./scripts/verify.sh`
+
+Zakres:
+- model rekordu i operacje stanu w Google Sheets
+- przebudowa orkiestracji na odczyt i przejscia trwalego stanu
+- testy migracji naglowka, retry, wysylki i recznej reaktywacji
+- aktualizacja dokumentacji operacyjnej i technicznej

@@ -12,19 +12,20 @@ Aplikacja:
 
 - pobiera listing `https://www.ppe.pl/gry`,
 - deterministycznie wyodrębnia linki PPE pasujące do `/news/<id>/<slug>.html`,
-- używa Google Sheets jako źródła prawdy o zarejestrowanych linkach,
-- zapisuje nowy link przed pobraniem i podsumowaniem artykułu,
+- używa Google Sheets jako źródła prawdy o linkach i ich stanie przetwarzania,
+- zapisuje nowy link jako `pending` przed pobraniem i podsumowaniem artykułu,
 - pobiera treść przez mirror Jina,
 - generuje jedno podsumowanie Gemini na poprawnie pobrany news,
 - odrzuca puste, ucięte lub niekompletne podsumowania,
+- utrwala kompletne podsumowanie jako `ready` przed próbą wysyłki,
+- ponawia błędy przetwarzania i SMTP maksymalnie trzy razy na etap,
 - wysyła jeden e-mail multipart z warstwą HTML i fallbackiem `plain text`.
 
 Poza aktualnym zakresem pozostają:
 
 - panel użytkownika, CLI, API i interfejs WWW,
 - wiele konfigurowalnych źródeł,
-- historia podsumowań i wysyłek,
-- automatyczne ponawianie linku po błędzie występującym po zapisie do Google Sheets,
+- osobny interfejs historii podsumowań i wysyłek,
 - kolejki zadań, rozbudowany monitoring, testy end-to-end i automatyczne wdrożenie.
 
 ## Granice systemu
@@ -44,15 +45,13 @@ Fallback WordPress REST API lub bezpośredni HTML działa wyłącznie dla histor
 ## Przepływ danych
 
 1. `main.py` ładuje konfigurację z `.env`.
-2. Aplikacja otwiera wskazaną zakładkę Google Sheets i odczytuje kolumnę `Links`.
-3. Pobiera HTML listingu i wyciąga unikalne linki newsów PPE.
-4. Odrzuca linki obecne w arkuszu lub już widziane w bieżącym przebiegu.
-5. Każdy nowy link dopisuje do Google Sheets. Błąd append kończy przetwarzanie tego linku.
-6. Dla zapisanego linku pobiera i waliduje treść artykułu, a następnie ogranicza wejście modelu do 6500 znaków.
-7. Gemini generuje podsumowanie w wymaganym formacie. Aplikacja odrzuca wynik bez tytułu, treści lub zamkniętego zdania.
-8. Poprawne wpisy trafiają do jednego e-maila multipart wysyłanego do skonfigurowanych odbiorców.
-
-Skutek świadomie zaakceptowanej kolejności: błąd po poprawnym zapisie linku nie powoduje automatycznego ponowienia tego artykułu w kolejnym przebiegu.
+2. Aplikacja otwiera wskazaną zakładkę Google Sheets i dodaje brakujące kolumny stanu.
+3. Pobiera HTML listingu, wyciąga unikalne linki PPE i zapisuje nowe rekordy jako `pending`.
+4. Dla każdego `pending` pobiera i waliduje treść, ogranicza wejście modelu do 6500 znaków i wywołuje Gemini.
+5. Błąd zwiększa licznik aktualnego etapu; trzecia kolejna porażka ustawia `failed`.
+6. Kompletne podsumowanie jest utrwalane jako `Summary`, a rekord przechodzi do `ready`.
+7. Wszystkie poprawne rekordy `ready` trafiają do jednego e-maila multipart.
+8. Sukces SMTP ustawia `sent`; błąd zachowuje podsumowanie do ponownej wysyłki bez kolejnego wywołania Gemini.
 
 Szczegółowe kontrakty i przypadki błędów opisuje [docs/spec/pipeline.md](docs/spec/pipeline.md).
 
@@ -61,7 +60,7 @@ Szczegółowe kontrakty i przypadki błędów opisuje [docs/spec/pipeline.md](do
 - `main.py` — konfiguracja i orkiestracja całego procesu.
 - `scrapers/listing.py` — pobranie listingu i parser linków PPE.
 - `scrapers/jina.py` — pobranie oraz walidacja treści artykułu; fallback dla `konsolowe.info`.
-- `storage/google_sheets.py` — uwierzytelnienie, odczyt kolumny `Links` i append.
+- `storage/google_sheets.py` — uwierzytelnienie, migracja nagłówka i trwały model stanu rekordów.
 - `llms/gemini.py` — prompt, klient Gemini, retry limitów i sanitizacja odpowiedzi.
 - `emails/gmail.py` — parsowanie wpisów, rendering HTML i tekstu oraz wysyłka SMTP.
 - `tests/` — testy jednostkowe bez wymogu prawdziwych sekretów i stabilnych usług zewnętrznych.
@@ -91,9 +90,13 @@ Plik konta serwisowego oraz pozostałe sekrety muszą pozostawać poza repozytor
 ### Google Sheets
 
 - Arkusz musi istnieć, być udostępniony kontu serwisowemu i zawierać nagłówek `Links`.
+- Aplikacja dopisuje brakujące kolumny `Status`, `Attempts`, `Summary`, `LastError`, `DiscoveredAt` i `UpdatedAt`.
 - Pusty arkusz bez nagłówka jest błędem konfiguracji.
 - Arkusz zawierający tylko nagłówek oznacza brak zarejestrowanych linków; widoczne newsy mogą zostać przetworzone w pierwszym przebiegu.
-- Link jest dopisywany jako wartość surowa przed pobraniem treści artykułu.
+- Historyczny wiersz z pustym statusem jest traktowany jak `sent`.
+- Nowy link jest dopisywany jako `pending`; kompletne podsumowanie przechodzi przez `ready` do `sent`.
+- `Attempts` liczy kolejne porażki bieżącego etapu; trzecia ustawia `failed`.
+- Operator może reaktywować rekord, zmieniając `failed` na `pending` albo `ready`.
 
 ### Listing
 
@@ -116,6 +119,7 @@ Plik konta serwisowego oraz pozostałe sekrety muszą pozostawać poza repozytor
 - Każdy wpis zawiera tytuł, podsumowanie i link.
 - HTML używa osadzonego CSS i nie wymaga zewnętrznych fontów, obrazów ani CDN.
 - E-mail nie jest wysyłany, jeśli żaden artykuł nie dał kompletnego podsumowania.
+- Błąd SMTP zachowuje `Summary` i jest ponawiany bez ponownego generowania treści.
 
 ## Stos techniczny
 
@@ -137,9 +141,9 @@ Najważniejsze obowiązujące decyzje:
 
 - środowisko i zależności są zarządzane przez `uv`,
 - aplikacja pozostaje pojedynczym skryptem orkiestrującym,
-- Google Sheets jest źródłem prawdy dla deduplikacji linków,
+- Google Sheets jest źródłem prawdy dla deduplikacji i stanów `pending`, `ready`, `sent`, `failed`,
 - parser listingu jest deterministyczny i nie używa LLM,
-- zapis linku poprzedza dalsze przetwarzanie,
+- zapis `pending` poprzedza przetwarzanie, a zapis `ready` poprzedza SMTP,
 - aktywna warstwa LLM używa Gemini i jednego wywołania na news,
 - wiadomość jest wysyłana przez SMTP jako multipart.
 
@@ -152,6 +156,8 @@ Historia wcześniejszych wariantów Groq/Qwen, lokalnego pliku stanu, parsera mi
 - `./scripts/verify.sh` przechodzi bez prawdziwych sekretów i niestabilnych usług zewnętrznych.
 - Link obecny w Google Sheets nie jest ponownie pobierany ani podsumowywany.
 - Błąd append blokuje dalsze przetwarzanie danego linku.
+- Błąd pobierania lub Gemini jest ponawiany do trzech prób, a następnie ustawia `failed`.
+- Błąd SMTP wykorzystuje zapisane podsumowanie i nie powtarza wywołania Gemini.
 - Parser akceptuje wyłącznie prawidłowe newsy PPE i odrzuca obce domeny oraz pozostałe sekcje serwisu.
 - Błędna lub zbyt krótka treść nie trafia do promptu.
 - Niekompletne podsumowanie nie trafia do e-maila.
@@ -177,10 +183,10 @@ Walidacje live Google Sheets, Gemini i SMTP są operacyjne i opcjonalne; standar
 
 ## Powiązanie z roadmapą
 
-Milestone'y 0.5 oraz 1.0–1.8 są ukończone. Brak aktywnego milestone'u; kolejna zmiana funkcjonalna powinna rozpocząć się od nowego PRD lub jawnej aktualizacji roadmapy.
+Milestone'y 0.5 oraz 1.0–1.9 są ukończone. Brak aktywnego milestone'u; kolejna zmiana funkcjonalna powinna rozpocząć się od nowego PRD lub jawnej aktualizacji roadmapy.
 
 ## Status specyfikacji
 
 - Data utworzenia: 2026-03-21
 - Ostatnia kompakcja: 2026-07-26
-- Aktualny zakres obowiązywania: stan repo po Milestone 1.8
+- Aktualny zakres obowiązywania: stan repo po Milestone 1.9

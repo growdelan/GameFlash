@@ -1,21 +1,7 @@
 import unittest
 
 from storage import google_sheets
-
-
-class FakeWorksheet:
-    def __init__(self, values=None, append_error=None):
-        self.values = values or [["Links"]]
-        self.appended_rows = []
-        self.append_error = append_error
-
-    def get_all_values(self):
-        return self.values
-
-    def append_row(self, row, value_input_option="RAW"):
-        if self.append_error:
-            raise self.append_error
-        self.appended_rows.append((row, value_input_option))
+from tests.fakes import FakeWorksheet
 
 
 class GoogleSheetsTests(unittest.TestCase):
@@ -45,13 +31,39 @@ class GoogleSheetsTests(unittest.TestCase):
 
     def test_append_link_appends_raw_row(self):
         ws = FakeWorksheet()
+        google_sheets.ensure_state_schema(ws)
 
-        google_sheets.append_link(ws, "https://example.com/new")
-
-        self.assertEqual(
-            [(["https://example.com/new"], "RAW")],
-            ws.appended_rows,
+        google_sheets.append_pending_link(
+            ws,
+            "https://example.com/new",
+            timestamp="2026-07-26T10:00:00+00:00",
         )
+
+        record = ws.record("https://example.com/new")
+        self.assertEqual("pending", record["status"])
+        self.assertEqual("0", record["attempts"])
+        self.assertEqual("2026-07-26T10:00:00+00:00", record["discoveredat"])
+        self.assertEqual("RAW", ws.appended_rows[0][1])
+
+    def test_ensure_state_schema_preserves_existing_columns(self):
+        ws = FakeWorksheet(values=[["Other", "Links"], ["x", "https://old"]])
+
+        google_sheets.ensure_state_schema(ws)
+
+        self.assertEqual(["Other", "Links"], ws.values[0][:2])
+        self.assertEqual(
+            list(google_sheets.STATE_HEADERS),
+            ws.values[0][2:],
+        )
+
+    def test_read_news_records_treats_legacy_blank_status_as_sent(self):
+        ws = FakeWorksheet(values=[["Links"], ["https://example.com/legacy"]])
+
+        records = google_sheets.read_news_records(ws)
+
+        self.assertEqual(1, len(records))
+        self.assertEqual("sent", records[0].status)
+        self.assertEqual(2, records[0].row_number)
 
 
 if __name__ == "__main__":
