@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Flow: Implementuj milestone"
+  short_description: "Zaimplementuj jeden uzgodniony milestone"
+  default_prompt: "Użyj $codex-flow-implement-milestone, aby zaimplementować wskazany milestone i uruchomić walidację."

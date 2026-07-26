@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Flow: Popraw review"
+  short_description: "Napraw zaakceptowane problemy z review"
+  default_prompt: "Użyj $codex-flow-address-review, aby wdrożyć wyłącznie zaakceptowane poprawki z ostatniego review."

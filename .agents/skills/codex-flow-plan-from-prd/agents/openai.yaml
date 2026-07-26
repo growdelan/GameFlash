@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Flow: Zaplanuj z PRD"
+  short_description: "Zamień PRD w specyfikację i roadmapę"
+  default_prompt: "Użyj $codex-flow-plan-from-prd, aby zaktualizować specyfikację i roadmapę na podstawie wskazanego PRD."

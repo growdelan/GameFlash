@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Flow: Publikuj"
+  short_description: "Zweryfikuj, commituj lub opublikuj zmianę"
+  default_prompt: "Użyj $codex-flow-publish zgodnie z moim jawnym zakresem autoryzacji dla commita lub pusha."

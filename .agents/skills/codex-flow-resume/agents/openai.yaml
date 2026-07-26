@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Flow: Wznów projekt"
+  short_description: "Odtwórz stan i następny bezpieczny krok"
+  default_prompt: "Użyj $codex-flow-resume, aby odtworzyć stan tego projektu bez modyfikowania plików."

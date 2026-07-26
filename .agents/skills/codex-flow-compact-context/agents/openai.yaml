@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Flow: Kompaktuj kontekst"
+  short_description: "Porządkuj duże pliki pamięci projektu"
+  default_prompt: "Użyj $codex-flow-compact-context, aby bezpiecznie skrócić STATUS.md, ROADMAP.md i spec.md bez utraty aktywnych ustaleń."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Flow: Utwórz PRD"
+  short_description: "Przeprowadź wywiad i zapisz gotowy PRD"
+  default_prompt: "Użyj $codex-flow-create-prd, aby przeprowadzić ze mną wywiad i utworzyć PRD dla opisanej funkcjonalności."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Flow: Review"
+  short_description: "Przeprowadź niezależne review zmian"
+  default_prompt: "Użyj $codex-flow-review, aby niezależnie ocenić ostatni diff bez modyfikowania plików."
