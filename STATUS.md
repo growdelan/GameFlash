@@ -43,17 +43,10 @@
 - Model `gemini-3.5-flash` wymaga poprawnego `GEMINI_API_KEY`; standardowe testy uzywaja stubow i nie potwierdzaja dostepnosci uslugi live.
 - Link dopisany do Google Sheets przed bledem dalszego przetwarzania nie jest automatycznie ponawiany w kolejnym przebiegu.
 
-## Ostatnie aktualizacje
-- 2026-03-21: migracja konfiguracji projektu na `uv`.
-- 2026-03-22: wdrozenie Milestone 1.0, testy lokalne i walidacja live Google Sheets.
-- 2026-03-22: wdrozenie Milestone 1.1, testy lokalne i walidacja live parsera listingu.
-- 2026-03-22: wdrozenie Milestone 1.2, testy lokalne i walidacja live finalnego pipeline'u.
-- 2026-03-22: model LLM przeniesiony do `LLM_MODEL` w `.env` i odswiezone zaleznosci wykonawcze.
-- 2026-03-22: wdrozenie Milestone 1.3, stylowany e-mail HTML, fallback `plain text` i testy lokalne warstwy maili.
-- 2026-06-27: wdrozenie Milestone 1.4, domyslny model `qwen/qwen3.6-27b`, walidacja live Qwen, ukrycie reasoning i testy lokalne.
-- 2026-06-27: wdrozenie Milestone 1.5, walidacja blednych odpowiedzi Jina, fallback WordPress/HTML, blokada niekompletnych korekt, testy lokalne i walidacja live problematycznego artykulu.
-- 2026-06-29: wdrozenie Milestone 1.6, migracja listingu na `https://www.ppe.pl/gry`, arkusz `gameflash_sheet_ppe`, parser linkow PPE i testy lokalne.
-- 2026-06-29: poprawki po self-review: limit wejscia artykulu przed LLM, timeout klienta Groq oraz walidacja live wysylki maila dla 3 newsow PPE.
-- 2026-07-01: wdrozenie Milestone 1.7, migracja LLM na Gemini `gemini-3.5-flash`, przeniesienie lokalnego `GEMINI_API_KEY`, usuniecie zaleznosci `groq` i testy lokalne.
-- 2026-07-01: poprawka po tescie skryptu: retry dla limitow Gemini, wiekszy budzet wyjscia podsumowania i blokada ucietych podsumowan przed wysylka.
-- 2026-07-01: usuniecie osobnej korekty LLM; mail jest budowany bezposrednio z kompletnego podsumowania.
+## Ostatnia istotna walidacja
+- 2026-07-26: `./scripts/check-context-size.sh` — wszystkie glowne dokumenty w zalecanych limitach po kompakcji `spec.md`.
+- 2026-07-26: `./scripts/verify.sh` — 36 testow przeszlo, 1 opcjonalny test live pominiety.
+
+## Handoff
+- Dokumentacja opisuje aktualny stan po Milestone 1.8; szczegoly pipeline'u i decyzje techniczne sa linkowane z `spec.md`.
+- Brak aktywnego milestone'u i zmian w zachowaniu aplikacji.
