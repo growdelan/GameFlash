@@ -11,7 +11,7 @@ class PipelineTests(unittest.TestCase):
         self.original_open_sheet = main.google_sheets.open_sheet
         self.original_fetch_listing = main.listing.fetch_listing_html
         self.original_fetch_article = main.jina.fetch_article_text
-        self.original_run_model = main.gemini.run_gemini_model
+        self.original_run_model = main.openai_summary.run_openai_model
         self.original_send_email = main.gmail.send_email
 
     def tearDown(self):
@@ -20,7 +20,7 @@ class PipelineTests(unittest.TestCase):
         main.google_sheets.open_sheet = self.original_open_sheet
         main.listing.fetch_listing_html = self.original_fetch_listing
         main.jina.fetch_article_text = self.original_fetch_article
-        main.gemini.run_gemini_model = self.original_run_model
+        main.openai_summary.run_openai_model = self.original_run_model
         main.gmail.send_email = self.original_send_email
 
     def _configure_common(self, worksheet, listing_html):
@@ -31,8 +31,8 @@ class PipelineTests(unittest.TestCase):
             "GOOGLE_SHEET_ID": "sheet-id",
             "GOOGLE_SHEET_WORKSHEET": "Sheet1",
             "URL": "https://www.ppe.pl/gry",
-            "GEMINI_API_KEY": "test",
-            "GEMINI_MODEL": "model",
+            "OPENAI_API_KEY": "test",
+            "OPENAI_MODEL": "model",
             "SMTP_SERVER": "smtp.gmail.com",
             "SENDER_MAIL": "sender@example.com",
             "SENDER_PASS": "pass",
@@ -58,11 +58,11 @@ class PipelineTests(unittest.TestCase):
 
         model_calls = []
 
-        def fake_run_model(gemini_api_key, model, options):
+        def fake_run_model(api_key, model, options):
             model_calls.append(options["prompt"])
             return "Tytul: New\n\nPodsumowanie: szkic."
 
-        main.gemini.run_gemini_model = fake_run_model
+        main.openai_summary.run_openai_model = fake_run_model
 
         main.main()
 
@@ -84,7 +84,7 @@ class PipelineTests(unittest.TestCase):
         )
         fetch_calls = []
         main.jina.fetch_article_text = lambda url: fetch_calls.append(url) or "article-body"
-        main.gemini.run_gemini_model = lambda *args, **kwargs: "unused"
+        main.openai_summary.run_openai_model = lambda *args, **kwargs: "unused"
 
         main.main()
 
@@ -103,7 +103,7 @@ class PipelineTests(unittest.TestCase):
         )
         fetch_calls = []
         main.jina.fetch_article_text = lambda url: fetch_calls.append(url) or "article-body"
-        main.gemini.run_gemini_model = lambda *args, **kwargs: "unused"
+        main.openai_summary.run_openai_model = lambda *args, **kwargs: "unused"
 
         main.main()
 
@@ -120,9 +120,10 @@ class PipelineTests(unittest.TestCase):
         main.jina.fetch_article_text = lambda url: (_ for _ in ()).throw(
             RuntimeError("fetch failed")
         )
-        main.gemini.run_gemini_model = lambda *args, **kwargs: "unused"
+        main.openai_summary.run_openai_model = lambda *args, **kwargs: "unused"
 
-        main.main()
+        with self.assertRaisesRegex(RuntimeError, "1 artykulow"):
+            main.main()
 
         self.assertEqual(
             "pending",
@@ -134,7 +135,7 @@ class PipelineTests(unittest.TestCase):
         worksheet = FakeWorksheet(values=[["Links"]])
         sent_messages = self._configure_common(worksheet, "<html></html>")
         main.jina.fetch_article_text = lambda url: "article-body"
-        main.gemini.run_gemini_model = lambda *args, **kwargs: "unused"
+        main.openai_summary.run_openai_model = lambda *args, **kwargs: "unused"
 
         main.main()
 

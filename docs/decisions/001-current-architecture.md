@@ -1,8 +1,8 @@
 # 001. Aktualna architektura GameFlash
 
 - Status: obowiązuje
-- Data konsolidacji: 2026-07-26
-- Zakres: stan po Milestone 1.9
+- Data konsolidacji: 2026-11-07
+- Zakres: stan po migracji OpenAI
 
 Dokument konsoliduje wyłącznie aktualne decyzje. Wcześniejsze warianty pozostają w historii Git i PRD.
 
@@ -21,7 +21,7 @@ Dokument konsoliduje wyłącznie aktualne decyzje. Wcześniejsze warianty pozost
 ## Google Sheets jako źródło prawdy i magazyn stanu
 
 - Decyzja: Google Sheets przechowuje link oraz stan `pending`, `ready`, `sent` albo `failed`, licznik prób, podsumowanie i dane diagnostyczne.
-- Uzasadnienie: trwałe przejścia eliminują utratę artykułu po błędzie i pozwalają ponowić SMTP bez kolejnego wywołania Gemini.
+- Uzasadnienie: trwałe przejścia eliminują utratę artykułu po błędzie i pozwalają ponowić SMTP bez kolejnego wywołania OpenAI.
 - Konsekwencje: aplikacja automatycznie dodaje kolumny stanu, ale nadal zależy od dostępu konta serwisowego i zakłada jedną aktywną instancję.
 
 ## Deterministyczny parser listingu
@@ -42,16 +42,22 @@ Dokument konsoliduje wyłącznie aktualne decyzje. Wcześniejsze warianty pozost
 - Uzasadnienie: mirror upraszcza pozyskanie tekstu artykułu, ale sam status HTTP nie gwarantuje wiarygodnej treści.
 - Konsekwencje: pipeline odrzuca znane strony błędów i zbyt krótkie odpowiedzi; fallback WordPress/HTML pozostaje dostępny tylko dla `konsolowe.info`.
 
-## Gemini jako aktywna warstwa LLM
+## OpenAI jako aktywna warstwa LLM
 
-- Decyzja: podsumowania generuje Google Gemini przez `google-genai`; domyślny model to `gemini-3.5-flash`, nadpisywalny przez `GEMINI_MODEL`.
-- Uzasadnienie: oficjalny SDK zapewnia bezpośredni klient, konfigurację timeoutu i spójny kontrakt generowania.
-- Konsekwencje: `GEMINI_API_KEY` jest wymaganym sekretem, a dostępność generowania zależy od Gemini Developer API.
+- Decyzja: OpenAI Responses API przez oficjalny SDK `openai`, `gpt-6-luna`, effort `medium`.
+- Uzasadnienie zaleznosci: oficjalny SDK obsluguje kontrakt Responses, reasoning, status ukonczenia i klasy bledow bez utrzymywania wlasnego protokolu HTTP. Zastepuje `google-genai`.
+- Konsekwencje: wymagany `OPENAI_API_KEY`; model i effort konfigurowane przez `OPENAI_MODEL` / `OPENAI_REASONING_EFFORT`. Timeout 60s, maksymalnie dwa retry, brak czekania dluzej niz 30s na retry. Brak przechowywania odpowiedzi po stronie API (`store=False`).
+
+## Ograniczony przebieg crona
+
+- Decyzja: jeden proces na host (flock), maksymalnie 30 minut, bez resetowania blokady przez kasowanie pliku.
+- Uzasadnienie: awaria Gemini pozostawiala kilkanascie procesow spiacych przez wiele dni; heartbeat monitoringu byl wysylany dopiero po zakonczeniu.
+- Konsekwencje: kod 75 dla zajetej blokady, 124 dla timeoutu, 1 dla bledu; przerwane rekordy pozostaja w trwalym stanie. Kodow nie maskujemy sztucznym heartbeat.
 
 ## Jedno wywołanie LLM na news
 
 - Decyzja: aktywny pipeline nie wykonuje osobnego etapu korekty językowej.
-- Uzasadnienie: kompletne podsumowanie Gemini wystarcza w obecnym zastosowaniu, a drugi etap zwiększał koszt, czas i ryzyko limitów.
+- Uzasadnienie: kompletne podsumowanie OpenAI wystarcza w obecnym zastosowaniu, a drugi etap zwiększał koszt, czas i ryzyko limitów.
 - Konsekwencje: aplikacja waliduje kompletność pierwszej odpowiedzi i pomija niepoprawny wynik zamiast go poprawiać drugim wywołaniem.
 
 ## Wiadomość multipart przez SMTP

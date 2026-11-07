@@ -56,6 +56,30 @@ class GoogleSheetsTests(unittest.TestCase):
             ws.values[0][2:],
         )
 
+    def test_record_fields_are_written_in_one_raw_batch(self):
+        from unittest.mock import Mock
+
+        ws = FakeWorksheet(
+            values=[
+                ["Other", "Links", *google_sheets.STATE_HEADERS],
+                ["keep", "https://example.com/news", "pending"],
+            ]
+        )
+        ws.batch_update = Mock(wraps=ws.batch_update)
+        record = google_sheets.read_news_records(ws)[0]
+        google_sheets.update_news_record(
+            ws,
+            record,
+            status="ready",
+            attempts=0,
+            summary="Tytul: News\n\nPodsumowanie: Tekst.",
+        )
+        ws.batch_update.assert_called_once()
+        self.assertEqual("RAW", ws.batch_update.call_args.kwargs["value_input_option"])
+        self.assertEqual("keep", ws.values[1][0])
+        self.assertEqual("ready", ws.record(record.link)["status"])
+        self.assertIn("Tekst.", ws.record(record.link)["summary"])
+
     def test_read_news_records_treats_legacy_blank_status_as_sent(self):
         ws = FakeWorksheet(values=[["Links"], ["https://example.com/legacy"]])
 

@@ -13,7 +13,7 @@ class MilestoneOneTests(unittest.TestCase):
             main.os.environ.clear()
             main.os.environ.update(
                 {
-                    "GEMINI_API_KEY": "test",
+                    "OPENAI_API_KEY": "test",
                     "SMTP_SERVER": "smtp.gmail.com",
                     "SENDER_MAIL": "sender@example.com",
                     "SENDER_PASS": "pass",
@@ -75,7 +75,7 @@ class MilestoneOneTests(unittest.TestCase):
         original_authenticate = main.google_sheets.authenticate_gspread
         original_open_sheet = main.google_sheets.open_sheet
         original_fetch_listing = main.listing.fetch_listing_html
-        original_run_model = main.gemini.run_gemini_model
+        original_run_model = main.openai_summary.run_openai_model
         try:
             main.google_sheets.authenticate_gspread = lambda _: object()
             main.google_sheets.open_sheet = lambda gc, spreadsheet_id, worksheet_title: (
@@ -88,7 +88,7 @@ class MilestoneOneTests(unittest.TestCase):
             <a href="/gry/sample-game/123">Game</a>
             <a href="/news/416201/new.html">New duplicate</a>
             """
-            main.gemini.run_gemini_model = lambda *args, **kwargs: (_ for _ in ()).throw(
+            main.openai_summary.run_openai_model = lambda *args, **kwargs: (_ for _ in ()).throw(
                 AssertionError("LLM nie powinien byc wywolywany dla listingu")
             )
 
@@ -109,7 +109,7 @@ class MilestoneOneTests(unittest.TestCase):
         finally:
             main.google_sheets.authenticate_gspread = original_authenticate
             main.google_sheets.open_sheet = original_open_sheet
-            main.gemini.run_gemini_model = original_run_model
+            main.openai_summary.run_openai_model = original_run_model
             main.listing.fetch_listing_html = original_fetch_listing
 
     def test_fetch_and_process_news_normalizes_links_with_configured_url(self):

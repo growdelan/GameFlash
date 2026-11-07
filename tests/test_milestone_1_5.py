@@ -164,11 +164,11 @@ class MilestoneOneFiveJinaTests(unittest.TestCase):
 class MilestoneOneFivePipelineTests(unittest.TestCase):
     def setUp(self):
         self.original_fetch_article = main.jina.fetch_article_text
-        self.original_run_model = main.gemini.run_gemini_model
+        self.original_run_model = main.openai_summary.run_openai_model
 
     def tearDown(self):
         main.jina.fetch_article_text = self.original_fetch_article
-        main.gemini.run_gemini_model = self.original_run_model
+        main.openai_summary.run_openai_model = self.original_run_model
 
     def test_fetch_error_prevents_403_body_from_reaching_summary_prompt(self):
         prompts = []
@@ -176,14 +176,14 @@ class MilestoneOneFivePipelineTests(unittest.TestCase):
             RuntimeError("Jina zwrocila blad zrodla zamiast tresci.")
         )
 
-        def fake_run_model(gemini_api_key, model, options):
+        def fake_run_model(api_key, model, options):
             prompts.append(options["prompt"])
             return "unused"
 
-        main.gemini.run_gemini_model = fake_run_model
+        main.openai_summary.run_openai_model = fake_run_model
 
         result = main.summarize_news(
-            {"GEMINI_API_KEY": "test", "GEMINI_MODEL": "model"},
+            {"OPENAI_API_KEY": "test", "OPENAI_MODEL": "model"},
             [ARTICLE_URL],
         )
 
@@ -195,14 +195,14 @@ class MilestoneOneFivePipelineTests(unittest.TestCase):
         long_article = " ".join(["dluga tresc artykulu"] * 2000)
         main.jina.fetch_article_text = lambda url: long_article
 
-        def fake_run_model(gemini_api_key, model, options):
+        def fake_run_model(api_key, model, options):
             prompts.append(options["prompt"])
             return "Tytul: News\n\nPodsumowanie: Szkic."
 
-        main.gemini.run_gemini_model = fake_run_model
+        main.openai_summary.run_openai_model = fake_run_model
 
         result = main.summarize_news(
-            {"GEMINI_API_KEY": "test", "GEMINI_MODEL": "model"},
+            {"OPENAI_API_KEY": "test", "OPENAI_MODEL": "model"},
             [ARTICLE_URL],
         )
 
@@ -215,14 +215,14 @@ class MilestoneOneFivePipelineTests(unittest.TestCase):
         main.jina.fetch_article_text = lambda url: "pelna tresc artykulu"
         calls = []
 
-        def fake_run_model(gemini_api_key, model, options):
+        def fake_run_model(api_key, model, options):
             calls.append(options["prompt"])
             return "Tytuł: News\n\nPodsumowanie: Uciety tekst w polowie"
 
-        main.gemini.run_gemini_model = fake_run_model
+        main.openai_summary.run_openai_model = fake_run_model
 
         result = main.summarize_news(
-            {"GEMINI_API_KEY": "test", "GEMINI_MODEL": "model"},
+            {"OPENAI_API_KEY": "test", "OPENAI_MODEL": "model"},
             [ARTICLE_URL],
         )
 

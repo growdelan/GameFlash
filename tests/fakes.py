@@ -15,6 +15,13 @@ class FakeWorksheet:
             self.values[row - 1].append("")
         self.values[row - 1][column - 1] = str(value)
 
+    def batch_update(self, data, value_input_option="RAW"):
+        from gspread.utils import a1_to_rowcol
+
+        for update in data:
+            row, column = a1_to_rowcol(update["range"])
+            self.update_cell(row, column, update["values"][0][0])
+
     def append_row(self, row, value_input_option="RAW"):
         header = [str(value).strip().lower() for value in self.values[0]]
         link_index = header.index("links")
