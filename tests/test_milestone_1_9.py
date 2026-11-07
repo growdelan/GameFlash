@@ -32,11 +32,11 @@ def state_row(
 class MilestoneOneNineTests(unittest.TestCase):
     def setUp(self):
         self.original_fetch_article = main.jina.fetch_article_text
-        self.original_run_model = main.gemini.run_gemini_model
+        self.original_run_model = main.openai_summary.run_openai_model
         self.original_send_email = main.gmail.send_email
         self.config = {
-            "GEMINI_API_KEY": "test",
-            "GEMINI_MODEL": "model",
+            "OPENAI_API_KEY": "test",
+            "OPENAI_MODEL": "model",
             "SMTP_SERVER": "smtp.example.com",
             "SENDER_MAIL": "sender@example.com",
             "SENDER_PASS": "pass",
@@ -45,7 +45,7 @@ class MilestoneOneNineTests(unittest.TestCase):
 
     def tearDown(self):
         main.jina.fetch_article_text = self.original_fetch_article
-        main.gemini.run_gemini_model = self.original_run_model
+        main.openai_summary.run_openai_model = self.original_run_model
         main.gmail.send_email = self.original_send_email
 
     def test_third_processing_failure_marks_record_as_failed(self):
@@ -73,7 +73,7 @@ class MilestoneOneNineTests(unittest.TestCase):
         link = "https://www.ppe.pl/news/2/success.html"
         ws = FakeWorksheet(values=[HEADERS, state_row(link, "pending", attempts=2)])
         main.jina.fetch_article_text = lambda url: "article-body"
-        main.gemini.run_gemini_model = lambda **kwargs: COMPLETE_SUMMARY
+        main.openai_summary.run_openai_model = lambda **kwargs: COMPLETE_SUMMARY
 
         main.process_pending_news(
             self.config,
@@ -114,7 +114,7 @@ class MilestoneOneNineTests(unittest.TestCase):
         main.jina.fetch_article_text = lambda url: (_ for _ in ()).throw(
             AssertionError("Jina nie powinna byc ponownie wywolywana")
         )
-        main.gemini.run_gemini_model = lambda **kwargs: (_ for _ in ()).throw(
+        main.openai_summary.run_openai_model = lambda **kwargs: (_ for _ in ()).throw(
             AssertionError("Gemini nie powinno byc ponownie wywolywane")
         )
         main.process_pending_news(
@@ -178,7 +178,7 @@ class MilestoneOneNineTests(unittest.TestCase):
         link = "https://www.ppe.pl/news/4/manual-processing.html"
         ws = FakeWorksheet(values=[HEADERS, state_row(link, "pending", attempts=3)])
         main.jina.fetch_article_text = lambda url: "article-body"
-        main.gemini.run_gemini_model = lambda **kwargs: COMPLETE_SUMMARY
+        main.openai_summary.run_openai_model = lambda **kwargs: COMPLETE_SUMMARY
 
         main.process_pending_news(
             self.config,

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import gspread
+from gspread.utils import rowcol_to_a1
 from gspread.exceptions import APIError, SpreadsheetNotFound, WorksheetNotFound
 
 STATE_HEADERS = (
@@ -173,5 +174,14 @@ def update_news_record(
     if summary is not None:
         updates["summary"] = summary
 
-    for header, value in updates.items():
-        ws.update_cell(record.row_number, header_map[header] + 1, value)
+    # Jeden zapis zapobiega stanowi ready bez utrwalonego Summary.
+    ws.batch_update(
+        [
+            {
+                "range": rowcol_to_a1(record.row_number, header_map[header] + 1),
+                "values": [[value]],
+            }
+            for header, value in updates.items()
+        ],
+        value_input_option="RAW",
+    )

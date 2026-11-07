@@ -1,6 +1,6 @@
 # Pipeline i kontrakty integracji
 
-Ten dokument rozwija aktualne kontrakty operacyjne z `spec.md`. Opisuje stan po Milestone 1.8, a nie historię wdrażania kolejnych PRD.
+Aktualne kontrakty po migracji do OpenAI Responses API (2026-11-07).
 
 ## Konfiguracja i start
 
@@ -10,7 +10,7 @@ Ten dokument rozwija aktualne kontrakty operacyjne z `spec.md`. Opisuje stan po 
 uv run main.py
 ```
 
-Konfiguracja obejmuje URL listingu, dane Gemini, SMTP, odbiorców oraz dostęp do Google Sheets. Aplikacja nie wykonuje kompleksowej walidacji wszystkich wartości przed startem; błędy mogą ujawnić się dopiero przy użyciu danej integracji.
+Konfiguracja obejmuje URL listingu, dane OpenAI, SMTP, odbiorców oraz dostęp do Google Sheets. Aplikacja nie wykonuje kompleksowej walidacji wszystkich wartości przed startem; błędy mogą ujawnić się dopiero przy użyciu danej integracji.
 
 ## Trwaly stan w Google Sheets
 
@@ -51,7 +51,7 @@ Dla każdego linku z listingu:
 
 Rekord `pending` po udanym pobraniu i podsumowaniu przechodzi do `ready`. Blad zwieksza `Attempts`; pierwsza i druga porazka pozostawiaja rekord w biezacym etapie, a trzecia ustawia `failed`. `Attempts` jest zerowane po przejsciu z `pending` do `ready`.
 
-Reczna zmiana `failed` na `pending` ponawia pobranie i Gemini. Zmiana na `ready` ponawia wysylke zachowanego `Summary`. Wyczerpany licznik jest wtedy zerowany przy nastepnym podjeciu.
+Reczna zmiana `failed` na `pending` ponawia pobranie i OpenAI. Zmiana na `ready` ponawia wysylke zachowanego `Summary`. Wyczerpany licznik jest wtedy zerowany przy nastepnym podjeciu.
 
 ## Pobieranie treści artykułu
 
@@ -76,7 +76,7 @@ Przed zbudowaniem promptu `main.prepare_article_text_for_summary()` ogranicza te
 
 ## Generowanie podsumowania
 
-`llms.gemini.summary_prompt()` wymaga odpowiedzi po polsku w formacie:
+`llms.openai_summary.summary_prompt()` wymaga odpowiedzi po polsku w formacie:
 
 ```text
 Tytuł: <tytuł>
@@ -84,14 +84,17 @@ Tytuł: <tytuł>
 Podsumowanie: <3–4 pełne zdania, maksymalnie 90 słów>
 ```
 
-Klient:
+Klient `openai` (oficjalny SDK, zaleznosc zarzadzana przez uv):
 
-- używa timeoutu 60 sekund,
-- przekazuje temperaturę `0.8` i limit 2048 tokenów wyjściowych,
-- ponawia czasowe błędy limitu maksymalnie cztery razy,
-- respektuje `retryDelay` z odpowiedzi API, a bez niego czeka domyślnie 25 sekund,
+- wywoluje Responses API z `model=gpt-6-luna`, `reasoning.effort=medium`, `store=False`,
+- uzywa timeoutu 60 sekund, bez automatycznych retry SDK,
+- rezerwuje 4096 tokenow na odpowiedz wraz z reasoning; nie przekazuje temperatury,
+- wykonuje maksymalnie dwa retry dla HTTP 408, 409, 429, 5xx i bledow polaczenia,
+- respektuje `Retry-After` / `retry-after-ms` do 30 sekund; dluzsze opoznienie przerywa probe,
+- nie ponawia bledow uprawnien ani `insufficient_quota`,
+- wymaga statusu `completed` i niepustego `output_text`; odrzuca odpowiedzi uciete,
 - usuwa ewentualne bloki `<think>...</think>`,
-- zgłasza błąd dla pustej odpowiedzi.
+- nie loguje surowych odpowiedzi HTTP ani tresci bledow dostawcy.
 
 `main.is_complete_summary_result()` wymaga tytułu, niepustego podsumowania i znaku kończącego pełne zdanie. Niepoprawny wynik jest pomijany.
 
@@ -107,7 +110,7 @@ Warstwa mailowa buduje:
 
 Treści są escapowane przed umieszczeniem w HTML. Styl nie wymaga zewnętrznych zasobów. Lista odbiorców pochodzi z rozdzielonej przecinkami zmiennej `RECIPIENTS`.
 
-Do jednego e-maila trafiaja wszystkie poprawne rekordy `ready`, w tym pozostawione przez wczesniejszy przebieg. Sukces ustawia je na `sent`. Blad SMTP zwieksza licznik etapu wysylki, zachowuje `Summary` i jest ponownie zglaszany procesowi. Kolejna proba nie wywoluje Jina ani Gemini.
+Do jednego e-maila trafiaja wszystkie poprawne rekordy `ready`, w tym pozostawione przez wczesniejszy przebieg. Sukces ustawia je na `sent`. Blad SMTP zwieksza licznik etapu wysylki, zachowuje `Summary` i jest ponownie zglaszany procesowi. Kolejna proba nie wywoluje Jina ani OpenAI.
 
 Jeżeli listing nie zawiera nowych linków i arkusz nie zawiera poprawnych rekordow `ready`, SMTP nie jest wywoływane. Dostarczanie ma semantyke at-least-once: awaria po przyjeciu wiadomosci przez SMTP, ale przed zapisem `sent`, moze spowodowac duplikat.
 
@@ -115,11 +118,13 @@ Jeżeli listing nie zawiera nowych linków i arkusz nie zawiera poprawnych rekor
 
 - Błąd inicjalizacji lub odczytu Google Sheets przerywa przebieg.
 - Błąd append dotyczy tylko jednego linku; kolejne mogą być przetwarzane.
-- Błąd pobrania, Gemini lub walidacji podsumowania dotyczy jednego artykułu i podlega limitowi trzech prób.
+- Błąd pobrania, OpenAI lub walidacji podsumowania dotyczy jednego artykułu i podlega limitowi trzech prób.
 - Błąd SMTP zachowuje gotowe podsumowania i podlega osobnemu limitowi trzech prób.
 - Nieznany niepusty status jest logowany i pomijany.
-- Pojedynczy arkusz nie jest chroniony przed równoległym przetwarzaniem przez wiele instancji.
-- Dostępność pipeline'u zależy od PPE, Google Sheets, Jina, Gemini i SMTP.
+- Entrypoint stosuje lokalny flock i limit 1800 sekund (kody 75/124); blokada nie synchronizuje roznych hostow.
+- Zapis pol jednego rekordu jest atomowym batch update; ogranicza ryzyko ready bez Summary i zuzycie limitow Sheets.
+- Bledy przetwarzania artykulow skutkuja niezerowym kodem po probie wyslania pozostalych gotowych podsumowan.
+- Dostępność pipeline'u zależy od PPE, Google Sheets, Jina, OpenAI i SMTP.
 - Standardowe testy nie potwierdzają dostępności usług live.
 
 ## Walidacja

@@ -4,12 +4,12 @@ Skrypt do podsumowywania newsow z branzy gier.
 
 ## Jak to dziala
 
-Skrypt wykorzystuje Google Sheets jako trwaly magazyn linkow i stanu ich przetwarzania. Lista kandydatow jest wyciagana bezposrednio z HTML listingu `https://www.ppe.pl/gry`; parser bierze tylko linki newsow PPE w formacie `/news/<id>/<slug>.html`. Nowe linki sa zapisywane jako `pending`. Pelna tresc jest pobierana przez mirror [Jina AI](https://jina.ai), a dla historycznych linkow z `konsolowe.info` dostepny jest fallback WordPress REST API lub bezposredni HTML. Gemini przygotowuje podsumowanie, ktore przed wysylka jest utrwalane jako `ready`. Sukces SMTP ustawia `sent`, a bledy pobierania, Gemini i wysylki sa ponawiane maksymalnie trzy razy na etap. Retry SMTP korzysta z zapisanego podsumowania. Domyslnym modelem jest `gemini-3.5-flash`.
+Skrypt wykorzystuje Google Sheets jako trwaly magazyn linkow i stanu ich przetwarzania. Lista kandydatow jest wyciagana bezposrednio z HTML listingu `https://www.ppe.pl/gry`; parser bierze tylko linki newsow PPE w formacie `/news/<id>/<slug>.html`. Nowe linki sa zapisywane jako `pending`. Pelna tresc jest pobierana przez mirror [Jina AI](https://jina.ai), a dla historycznych linkow z `konsolowe.info` dostepny jest fallback WordPress REST API lub bezposredni HTML. OpenAI Responses API przygotowuje podsumowanie, ktore przed wysylka jest utrwalane jako `ready`. Sukces SMTP ustawia `sent`, a bledy pobierania, OpenAI i wysylki sa ponawiane maksymalnie trzy razy na etap. Retry SMTP korzysta z zapisanego podsumowania. Domyslnym modelem jest `gpt-6-luna` z `reasoning.effort=medium`.
 
 ## Wymagania
 
 - `uv`
-- konto Google AI Studio/Gemini i klucz API
+- konto OpenAI API i klucz projektu
 - konto Google z arkuszem udostepnionym kontu serwisowemu
 - konto SMTP do wysylki e-maili
 
@@ -17,8 +17,9 @@ Skrypt wykorzystuje Google Sheets jako trwaly magazyn linkow i stanu ich przetwa
 
 1. Skopiuj `.env.example` do `.env`.
 2. Uzupelnij wartosci zmiennych:
-   - `GEMINI_API_KEY`
-   - `GEMINI_MODEL` (domyslnie `gemini-3.5-flash`)
+   - `OPENAI_API_KEY`
+   - `OPENAI_MODEL` (domyslnie `gpt-6-luna`)
+   - `OPENAI_REASONING_EFFORT` (domyslnie `medium`)
    - `URL` (domyslnie `https://www.ppe.pl/gry`)
    - `GOOGLE_SHEET_ID` (domyslnie arkusz `gameflash_sheet_ppe`: `1N82WxjskvsIyjlfwh8CxlhHJB9LEUMwbAdCI8w0J_yk`)
    - `GOOGLE_SHEET_WORKSHEET` (domyslnie `Sheet1`)
@@ -56,15 +57,25 @@ uv run python -m unittest discover -s tests -p "test_*.py"
 
 Testy obejmuja migracje schematu i przejscia stanu Google Sheets, retry przetwarzania i SMTP, parser listingu PPE, fallback pobierania tresci oraz renderowanie i wysylke stylowanego e-maila HTML bez realnego SMTP.
 
-Klient Gemini ponawia czasowe bledy limitu `RESOURCE_EXHAUSTED` zgodnie z `retryDelay` zwracanym przez API. Pipeline odrzuca ucięte podsumowania przed wysylka maila.
+Klient OpenAI ma timeout 60 sekund i maksymalnie dwa ponowienia dla bledow przejsciowych. Akceptuje `Retry-After` do 30 sekund; dluzszy okres oczekiwania konczy probe i pozostawia retry kolejnemu cronowi. Wyczerpanie budzetu API i bledy autoryzacji nie sa ponawiane w tym samym przebiegu. Odpowiedz musi miec status `completed`, tytul i pelne podsumowanie. API otrzymuje `store=False`.
 
-Opcjonalna walidacja live modelu Gemini, bez zapisu do Google Sheets i bez wysylki SMTP:
+Entrypoint chroni plik `.gameflash.lock` (blokada `flock`) i limit 30 minut. Druga instancja zwraca kod 75, timeout kod 124, a blad przebiegu kod 1. Bledy przetwarzania artykulow sa raportowane monitoringowi nawet wtedy, gdy inne podsumowania udalo sie dostarczyc. Blokada dziala tylko na jednym hoscie; nie uruchamiaj rownolegle produkcji lokalnie i na Pi.
+
+Opcjonalna walidacja live OpenAI, bez Google Sheets i SMTP:
 
 ```bash
-RUN_LIVE_GEMINI_VALIDATION=1 uv run python -m unittest tests.test_milestone_1_4.GeminiLiveValidationTests
+RUN_LIVE_OPENAI_VALIDATION=1 uv run python -m unittest tests.test_openai_summary.OpenAILiveValidationTests
 ```
 
-Walidacja wymaga `GEMINI_API_KEY` w `.env`. Standardowe testy pomijaja ten scenariusz.
+Pelny smoke wszystkich integracji na skonfigurowanym hoscie (odczyt Sheets, PPE/Jina, OpenAI, rendering MIME, TLS/login SMTP; bez zapisow i wysylki):
+
+```bash
+uv run --frozen python -m scripts.smoke
+```
+
+Walidacja wymaga `OPENAI_API_KEY` w `.env`. Standardowe testy pomijaja ten scenariusz. `.env` i kopie sekretow sa ignorowane przez Git; utrzymuj uprawnienia `0600` i nie wlaczaj logowania debug HTTP. Nie przekazuj kluczy w argumentach polecen.
+
+Plan wdrozenia, kryteria odbioru i rollback: [docs/deployment-openai.md](docs/deployment-openai.md). Kontrakty: [docs/spec/pipeline.md](docs/spec/pipeline.md).
 
 ## Przykladowy wynik
 

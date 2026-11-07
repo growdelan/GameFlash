@@ -4,21 +4,20 @@ import os
 import re
 from dotenv import load_dotenv
 
-from llms import gemini
+from llms import openai_summary
 from scrapers import jina, listing
 from emails import gmail
 from storage import google_sheets
+from utils.security import safe_error
 
 DEFAULT_LISTING_URL = "https://www.ppe.pl/gry"
-DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
+DEFAULT_OPENAI_MODEL = openai_summary.DEFAULT_MODEL
 DEFAULT_GOOGLE_SHEET_ID = "1N82WxjskvsIyjlfwh8CxlhHJB9LEUMwbAdCI8w0J_yk"
 DEFAULT_GOOGLE_SHEET_WORKSHEET = "Sheet1"
 MAX_ARTICLE_TEXT_CHARS = 6500
 MAX_PIPELINE_ATTEMPTS = 3
 KNOWN_NEWS_STATUSES = {"pending", "ready", "sent", "failed"}
-ARTICLE_TRUNCATION_NOTICE = (
-    "\n\n[Pozostala czesc artykulu zostala pominieta ze wzgledu na limit wejscia modelu.]"
-)
+ARTICLE_TRUNCATION_NOTICE = "\n\n[Pozostala czesc artykulu zostala pominieta ze wzgledu na limit wejscia modelu.]"
 TITLE_RE = re.compile(r"^Tytu[łl]:\s*(.+)$", re.MULTILINE)
 SUMMARY_RE = re.compile(r"Podsumowanie:\s*(.+?)(?:\n\s*\nLink:|\nLink:|\Z)", re.DOTALL)
 SUMMARY_END_RE = re.compile(r"[.!?…][\"'”’)]*\s*$")
@@ -31,8 +30,9 @@ def load_config():
     load_dotenv()
     return {
         "URL": os.getenv("URL", DEFAULT_LISTING_URL),
-        "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY"),
-        "GEMINI_MODEL": os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL),
+        "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
+        "OPENAI_MODEL": os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL),
+        "OPENAI_REASONING_EFFORT": os.getenv("OPENAI_REASONING_EFFORT", "medium"),
         "SMTP_SERVER": os.getenv("SMTP_SERVER"),
         "SENDER_MAIL": os.getenv("SENDER_MAIL"),
         "SENDER_PASS": os.getenv("SENDER_PASS"),
@@ -73,7 +73,9 @@ def discover_news(config, ws, records):
         try:
             google_sheets.append_pending_link(ws, link)
         except Exception as exc:
-            print(f"Nie udalo sie dopisac linku do Google Sheets: {link} ({exc})")
+            print(
+                f"Nie udalo sie dopisac linku do Google Sheets: {link} ({safe_error(exc)})"
+            )
             continue
         registered_links.add(link)
         seen_this_run.add(link)
@@ -108,7 +110,7 @@ def summarize_news(config, new_links):
         try:
             summary_news = summarize_link(config, news)
         except Exception as exc:
-            print(f"Nie udalo sie przetworzyc artykulu {news}: {exc}")
+            print(f"Nie udalo sie przetworzyc artykulu {news}: {safe_error(exc)}")
             continue
 
         news_to_send.append(
@@ -122,15 +124,13 @@ def summarize_news(config, new_links):
 def summarize_link(config, link: str) -> str:
     """Pobiera artykul i zwraca kompletne podsumowanie jednego linku."""
     article_text = prepare_article_text_for_summary(jina.fetch_article_text(url=link))
-    summary_model_options = gemini.model_options(
-        prompt=gemini.summary_prompt(article_text),
-        temperature=0.8,
-        max_tokens=2048,
-    )
-    summary = gemini.run_gemini_model(
-        gemini_api_key=config["GEMINI_API_KEY"],
-        model=config["GEMINI_MODEL"],
-        options=summary_model_options,
+    summary = openai_summary.run_openai_model(
+        api_key=config["OPENAI_API_KEY"],
+        model=config["OPENAI_MODEL"],
+        options={
+            "prompt": openai_summary.summary_prompt(article_text),
+            "effort": config.get("OPENAI_REASONING_EFFORT", "medium"),
+        },
     )
     if not is_complete_summary_result(summary):
         raise RuntimeError("Model zwrocil niekompletne podsumowanie.")
@@ -153,8 +153,9 @@ def log_unknown_statuses(records) -> None:
             )
 
 
-def process_pending_news(config, ws, records) -> None:
+def process_pending_news(config, ws, records) -> int:
     """Przetwarza rekordy pending i utrwala gotowe podsumowania jako ready."""
+    failures = 0
     for record in records:
         if record.status not in KNOWN_NEWS_STATUSES:
             continue
@@ -173,6 +174,7 @@ def process_pending_news(config, ws, records) -> None:
                 last_error="",
             )
         except Exception as exc:
+            failures += 1
             status, next_attempts = _next_failure_state(attempts)
             google_sheets.update_news_record(
                 ws,
@@ -180,13 +182,19 @@ def process_pending_news(config, ws, records) -> None:
                 status=status,
                 attempts=next_attempts,
                 summary="",
-                last_error=str(exc),
+                last_error=safe_error(exc),
             )
-            print(f"Nie udalo sie przetworzyc artykulu {record.link}: {exc}")
+            print(
+                f"Nie udalo sie przetworzyc artykulu {record.link}: {safe_error(exc)}"
+            )
+
+    return failures
 
 
 def _news_entry(record) -> str:
-    return f"{record.summary}\n\nLink: {record.link}\n\n################################"
+    return (
+        f"{record.summary}\n\nLink: {record.link}\n\n################################"
+    )
 
 
 def send_ready_news(config, ws, records) -> None:
@@ -227,15 +235,13 @@ def send_ready_news(config, ws, records) -> None:
     except Exception as exc:
         for record, attempts in ready_records:
             next_attempts = attempts + 1
-            status = (
-                "failed" if next_attempts >= MAX_PIPELINE_ATTEMPTS else "ready"
-            )
+            status = "failed" if next_attempts >= MAX_PIPELINE_ATTEMPTS else "ready"
             google_sheets.update_news_record(
                 ws,
                 record,
                 status=status,
                 attempts=next_attempts,
-                last_error=str(exc),
+                last_error=safe_error(exc),
             )
         raise
 
@@ -287,11 +293,15 @@ def main():
     discover_news(config, ws, records)
 
     records = google_sheets.read_news_records(ws)
-    process_pending_news(config, ws, records)
+    failures = process_pending_news(config, ws, records)
 
     records = google_sheets.read_news_records(ws)
     send_ready_news(config, ws, records)
+    if failures:
+        raise RuntimeError(f"Nie udalo sie przetworzyc {failures} artykulow.")
 
 
 if __name__ == "__main__":
-    main()
+    from utils.runtime import run_exclusive
+
+    raise SystemExit(run_exclusive(main))

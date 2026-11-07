@@ -5,3 +5,10 @@ test.py
 news_links.json
 service_account.json
 .agents/.DS_Store
+
+.env.*
+!.env.example
+*.log
+*.log.*
+.gameflash.lock
+.DS_Store
