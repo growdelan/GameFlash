@@ -80,3 +80,7 @@ Plan wdrozenia, kryteria odbioru i rollback: [docs/deployment-openai.md](docs/de
 ## Przykladowy wynik
 
 ![Przykladowy wynik](/Users/gohan/IT/DevOps/Programowanie/Python/Projekty/GameFlash/img/01.png)
+
+## Filmy w artykulach
+
+Linki YouTube z HTML artykulu (odnosniki i osadzone odtwarzacze, takze lazy-loading) sa dopisywane pod podsumowaniem jako `Wideo: https://www.youtube.com/watch?v=...`. Wersja HTML zawiera klikalny link, wersja tekstowa pelny adres. Duplikaty sa usuwane. Linki sa utrwalane w Summary i zachowywane przy retry SMTP. Wykrywanie wymaga dostepu do HTML strony; blad pobrania podlega standardowym retry artykulu. Filmy dodawane wylacznie przez JavaScript moga nie byc widoczne.

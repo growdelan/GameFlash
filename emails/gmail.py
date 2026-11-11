@@ -7,9 +7,13 @@ import re
 import smtplib
 import ssl
 
+from scrapers.youtube import canonical_video_url
+
 SEPARATOR = "################################"
 TITLE_RE = re.compile(r"^Tytu[łl]:\s*(.+)$", re.MULTILINE)
-SUMMARY_RE = re.compile(r"Podsumowanie:\s*(.+?)(?:\n\s*\nLink:|\nLink:|\Z)", re.DOTALL)
+SUMMARY_RE = re.compile(
+    r"Podsumowanie:\s*(.+?)(?:\n\s*\n(?:Link|Wideo):|\n(?:Link|Wideo):|\Z)", re.DOTALL
+)
 LINK_RE = re.compile(r"^Link:\s*(\S+)\s*$", re.MULTILINE)
 
 
@@ -31,6 +35,13 @@ def _parse_news_entry(news_entry: str) -> dict:
         "title": title_match.group(1).strip() if title_match else "Nowy news gamingowy",
         "summary": summary_match.group(1).strip() if summary_match else cleaned,
         "link": link_match.group(1).strip() if link_match else "",
+        "videos": list(
+            dict.fromkeys(
+                url
+                for value in re.findall(r"^Wideo:\s*(\S+)", cleaned, re.MULTILINE)
+                if (url := canonical_video_url(value))
+            )
+        ),
     }
 
 
@@ -42,7 +53,9 @@ def build_plain_text_body(news_to_send: list) -> str:
         if cleaned:
             normalized_entries.append(cleaned)
 
-    return "\n\n" + ("\n\n---\n\n".join(normalized_entries) if normalized_entries else "")
+    return "\n\n" + (
+        "\n\n---\n\n".join(normalized_entries) if normalized_entries else ""
+    )
 
 
 def _format_html_text(value: str) -> str:
@@ -66,22 +79,24 @@ def build_email_html(news_to_send: list) -> str:
                 f'rel="noopener noreferrer">Czytaj pełny artykuł</a>'
             )
 
-        cards.append(
-            f"""
+        videos_html = "".join(
+            f'<p>Wideo: <a href="{html.escape(url, quote=True)}">{html.escape(url)}</a></p>'
+            for url in item["videos"]
+        )
+        cards.append(f"""
             <tr>
               <td class="card">
                 <p class="eyebrow">GameFlash News</p>
                 <h2>{title_html}</h2>
                 <p class="summary">{summary_html}</p>
+                {videos_html}
                 {cta_html}
               </td>
             </tr>
-            """
-        )
+            """)
 
     if not cards:
-        cards.append(
-            """
+        cards.append("""
             <tr>
               <td class="card">
                 <p class="eyebrow">GameFlash News</p>
@@ -89,8 +104,7 @@ def build_email_html(news_to_send: list) -> str:
                 <p class="summary">W tym przebiegu nie przygotowano zadnych nowych podsumowan do wysylki.</p>
               </td>
             </tr>
-            """
-        )
+            """)
 
     cards_html = "\n".join(cards)
 

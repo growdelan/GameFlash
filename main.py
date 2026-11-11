@@ -5,7 +5,7 @@ import re
 from dotenv import load_dotenv
 
 from llms import openai_summary
-from scrapers import jina, listing
+from scrapers import jina, listing, youtube
 from emails import gmail
 from storage import google_sheets
 from utils.security import safe_error
@@ -19,7 +19,9 @@ MAX_PIPELINE_ATTEMPTS = 3
 KNOWN_NEWS_STATUSES = {"pending", "ready", "sent", "failed"}
 ARTICLE_TRUNCATION_NOTICE = "\n\n[Pozostala czesc artykulu zostala pominieta ze wzgledu na limit wejscia modelu.]"
 TITLE_RE = re.compile(r"^Tytu[łl]:\s*(.+)$", re.MULTILINE)
-SUMMARY_RE = re.compile(r"Podsumowanie:\s*(.+?)(?:\n\s*\nLink:|\nLink:|\Z)", re.DOTALL)
+SUMMARY_RE = re.compile(
+    r"Podsumowanie:\s*(.+?)(?:\n\s*\n(?:Link|Wideo):|\n(?:Link|Wideo):|\Z)", re.DOTALL
+)
 SUMMARY_END_RE = re.compile(r"[.!?…][\"'”’)]*\s*$")
 
 
@@ -124,6 +126,7 @@ def summarize_news(config, new_links):
 def summarize_link(config, link: str) -> str:
     """Pobiera artykul i zwraca kompletne podsumowanie jednego linku."""
     article_text = prepare_article_text_for_summary(jina.fetch_article_text(url=link))
+    videos = youtube.fetch_video_links(link)
     summary = openai_summary.run_openai_model(
         api_key=config["OPENAI_API_KEY"],
         model=config["OPENAI_MODEL"],
@@ -134,7 +137,7 @@ def summarize_link(config, link: str) -> str:
     )
     if not is_complete_summary_result(summary):
         raise RuntimeError("Model zwrocil niekompletne podsumowanie.")
-    return summary
+    return summary + "".join(f"\n\nWideo: {url}" for url in videos)
 
 
 def _next_failure_state(attempts: int) -> tuple[str, int]:
