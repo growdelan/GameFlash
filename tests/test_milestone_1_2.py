@@ -6,6 +6,10 @@ from tests.fakes import FakeWorksheet
 
 class PipelineTests(unittest.TestCase):
     def setUp(self):
+        from unittest.mock import patch
+        video_patch = patch("main.youtube.fetch_video_links", return_value=[])
+        video_patch.start()
+        self.addCleanup(video_patch.stop)
         self.original_load_config = main.load_config
         self.original_authenticate = main.google_sheets.authenticate_gspread
         self.original_open_sheet = main.google_sheets.open_sheet

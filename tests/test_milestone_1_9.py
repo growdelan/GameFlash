@@ -31,6 +31,10 @@ def state_row(
 
 class MilestoneOneNineTests(unittest.TestCase):
     def setUp(self):
+        from unittest.mock import patch
+        video_patch = patch("main.youtube.fetch_video_links", return_value=[])
+        video_patch.start()
+        self.addCleanup(video_patch.stop)
         self.original_fetch_article = main.jina.fetch_article_text
         self.original_run_model = main.openai_summary.run_openai_model
         self.original_send_email = main.gmail.send_email
